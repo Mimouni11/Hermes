@@ -1,0 +1,38 @@
+# hermes-voice — Python 3.11
+# Free tools only: no paid APIs, no paid hosting.
+
+# --- speech to text ---
+faster-whisper
+openai-whisper
+
+# --- text to speech ---
+piper-tts
+gTTS
+
+# --- audio ---
+librosa
+soundfile
+
+# --- data and modelling ---
+numpy
+pandas
+scikit-learn
+torch
+sentence-transformers
+rapidfuzz
+
+# --- language models ---
+google-generativeai
+ollama
+
+# --- demo UI ---
+gradio
+
+# --- plumbing ---
+python-dotenv
+
+# --- evaluation ---
+jiwer
+
+# --- tests ---
+pytest

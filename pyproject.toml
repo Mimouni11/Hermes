@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hermes-voice"
+version = "0.1.0"
+description = "A voice agent for a medical imaging centre call line."
+requires-python = "==3.11.*"
+readme = "README.md"
+dependencies = [
+    "faster-whisper",
+    "openai-whisper",
+    "piper-tts",
+    "gTTS",
+    "librosa",
+    "soundfile",
+    "numpy",
+    "pandas",
+    "scikit-learn",
+    "torch",
+    "sentence-transformers",
+    "rapidfuzz",
+    "google-generativeai",
+    "ollama",
+    "gradio",
+    "python-dotenv",
+    "jiwer",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

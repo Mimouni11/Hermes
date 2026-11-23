@@ -35,6 +35,9 @@ class Paths:
     agenda_db: Path
     llm_cache: Path
     call_log: Path
+    #: Synthesised lines, keyed by hash. The agent repeats its prompts and the
+    #: fixed safety script constantly, so each is spoken into a file once.
+    tts_cache: Path
 
 
 # --------------------------------------------------------------------------
@@ -57,6 +60,11 @@ class Settings:
     #: The quantisation faster-whisper loads with.
     stt_compute_type: str
     tts_backend: str
+    #: A Piper .onnx voice. Empty means "first one found in models/piper".
+    tts_voice: str | None
+    #: The rate the agent's replies are written at. Higher than the 16 kHz the
+    #: STT side uses: nothing transcribes these, and the listening test does.
+    tts_sample_rate: int
     language: str
 
     embedding_model: str
@@ -98,11 +106,13 @@ DEFAULTS: dict[str, object] = {
     "OLLAMA_MODEL": "mistral",
     "USE_LOCAL_LLM": False,
     "STT_BACKEND": "faster-whisper",
-    # "small", not "base". Measured on the 45-clip test set: small reaches
-    # 0.256 mean WER against base's 0.310, and base collapses on exactly the
-    # vocabulary this call line runs on — "IRM rachis lombaire" came back as
-    # "irrer un hockey un bœur". small costs 0.67 xRT on CPU, which is still
-    # realtime, so base's speed advantage buys nothing.
+    # "small", not "base". Head to head on the same 35 clips: small 0.173 mean
+    # WER against base's 0.310, and base collapses on exactly the vocabulary
+    # this call line runs on — "IRM rachis lombaire" came back as "irrer un
+    # hockey un bœur". small costs 0.64 xRT on CPU, still realtime, so base's
+    # speed advantage buys nothing. (The later 45-clip run, which added the
+    # 0 and -5 dB tiers, puts small at 0.256; it ran small only, so it is not
+    # a comparison with base.)
     "STT_MODEL_SIZE": "small",
     # CPU int8 by default rather than probing for a GPU. The demo runs on a
     # school laptop; int8 is what makes "small" realtime there, and pinning it
@@ -111,6 +121,7 @@ DEFAULTS: dict[str, object] = {
     "STT_DEVICE": "cpu",
     "STT_COMPUTE_TYPE": "int8",
     "TTS_BACKEND": "piper",
+    "TTS_SAMPLE_RATE": 22050,
     "LANGUAGE": "fr",
     "EMBEDDING_MODEL": (
         "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
@@ -241,6 +252,7 @@ def build_paths(root: Path | None = None) -> Paths:
         agenda_db=processed / "agenda.db",
         llm_cache=processed / "llm_cache.sqlite",
         call_log=processed / "calls.jsonl",
+        tts_cache=processed / "tts_cache",
     )
 
     for directory in (
@@ -249,6 +261,7 @@ def build_paths(root: Path | None = None) -> Paths:
         paths.models,
         paths.reports,
         paths.figures,
+        paths.tts_cache,
     ):
         directory.mkdir(parents=True, exist_ok=True)
     return paths
@@ -267,6 +280,8 @@ def load_settings(env_file: Path | None = None) -> Settings:
         stt_device=_as_str("STT_DEVICE"),
         stt_compute_type=_as_str("STT_COMPUTE_TYPE"),
         tts_backend=_as_str("TTS_BACKEND"),
+        tts_voice=_raw("TTS_VOICE"),
+        tts_sample_rate=_as_int("TTS_SAMPLE_RATE"),
         language=_as_str("LANGUAGE"),
         embedding_model=_as_str("EMBEDDING_MODEL"),
         min_snr_db=_as_float("MIN_SNR_DB"),

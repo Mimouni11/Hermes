@@ -15,6 +15,7 @@ author in a week's time.
 | [audio-test-set.md](audio-test-set.md) | How the 45-clip French test set is built and regenerated |
 | [stt.md](stt.md) | The audio quality gate, the Whisper wrapper, and the measured results |
 | [tts.md](tts.md) | The agent's voice: Piper, the cache, and reading a booking aloud |
+| [WP3.md](WP3.md) | **Planned next:** intent gate and FAQ retrieval, with Qdrant |
 
 ## Where the project stands
 

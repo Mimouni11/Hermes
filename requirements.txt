@@ -21,6 +21,10 @@ torch
 sentence-transformers
 rapidfuzz
 
+# --- vector store ---
+# Server runs in Docker; see docker-compose.yml. Tested against Qdrant 1.20.2.
+qdrant-client
+
 # --- language models ---
 google-generativeai
 ollama

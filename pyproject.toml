@@ -26,6 +26,7 @@ dependencies = [
     "gradio",
     "python-dotenv",
     "jiwer",
+    "qdrant-client>=1.20.0",
 ]
 
 [project.optional-dependencies]

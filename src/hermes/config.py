@@ -68,6 +68,20 @@ class Settings:
     language: str
 
     embedding_model: str
+    #: Dimensions the embedding model emits. Checked against the collection on
+    #: startup, because a mismatch is otherwise a silent retrieval failure.
+    embedding_dim: int
+
+    # --- the vector store ---
+    qdrant_host: str
+    qdrant_port: int
+    qdrant_api_key: str | None
+    intent_collection: str
+    faq_collection: str
+    #: How many neighbours the intent vote looks at.
+    intent_top_k: int
+    #: How many FAQ entries are retrieved before the threshold is applied.
+    faq_top_k: int
 
     min_snr_db: float
     #: Below this transcription confidence the turn is not acted on. Measured,
@@ -75,6 +89,15 @@ class Settings:
     min_confidence: float
     intent_accept_threshold: float
     intent_margin: float
+    #: Guards below which an utterance is too short to classify at all.
+    min_utterance_words: int
+    min_utterance_letters: int
+    #: P(medical) above which a turn is medical whatever else scores higher.
+    medical_probability_floor: float
+    #: Below this top probability the gate asks rather than routes.
+    intent_min_probability: float
+    #: Filename of the fitted intent classifier inside models/.
+    intent_model_file: str
     faq_accept_threshold: float
     exam_fuzzy_threshold: int
     frustration_escalate_threshold: float
@@ -123,9 +146,20 @@ DEFAULTS: dict[str, object] = {
     "TTS_BACKEND": "piper",
     "TTS_SAMPLE_RATE": 22050,
     "LANGUAGE": "fr",
+    # Multilingual on purpose: the corpora carry French, Darija in Arabic
+    # script, Arabizi and code-switched sentences, and one model has to embed
+    # all four into the same space.
     "EMBEDDING_MODEL": (
         "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     ),
+    "EMBEDDING_DIM": 384,
+    # Qdrant runs in Docker; see docker-compose.yml.
+    "QDRANT_HOST": "localhost",
+    "QDRANT_PORT": 6333,
+    "INTENT_COLLECTION": "hermes_intents",
+    "FAQ_COLLECTION": "hermes_faq",
+    "INTENT_TOP_K": 5,
+    "FAQ_TOP_K": 3,
     # Calibrated by scripts/calibrate_gate.py against measured WER, not picked.
     # At 11.2 dB the gate rejects 13 of 45 clips whose mean WER is 0.511 and
     # keeps 32 whose mean WER is 0.152 — the cut that isolates the unusable
@@ -137,7 +171,40 @@ DEFAULTS: dict[str, object] = {
     "MIN_CONFIDENCE": 0.62,
     "INTENT_ACCEPT_THRESHOLD": 0.55,
     "INTENT_MARGIN": 0.08,
-    "FAQ_ACCEPT_THRESHOLD": 0.60,
+    # An utterance shorter than this never reaches the embedder. Measured: on
+    # the out-of-scope set, "oui", "hmm", "euh..." and "allô ?" all match
+    # "Opérateur !" at ~0.78, higher than almost any genuine in-scope example.
+    # Short strings embed near short strings whatever they mean, so a
+    # similarity threshold cannot separate them and must not be asked to.
+    "MIN_UTTERANCE_WORDS": 2,
+    "MIN_UTTERANCE_LETTERS": 5,
+    # Asymmetric on purpose. If the classifier gives medical_question this much
+    # probability, the turn is treated as medical even when another intent
+    # scores higher. A false alarm costs one transfer; a miss costs safety, and
+    # the measured leaks were "J'ai un pacemaker, je peux faire l'IRM ?" going
+    # to new_appointment.
+    "MEDICAL_PROBABILITY_FLOOR": 0.25,
+    # Below this top probability the classifier is guessing between classes, so
+    # the agent asks instead of acting.
+    "INTENT_MIN_PROBABILITY": 0.45,
+    # Where train_intent_classifier.py writes the fitted model. Under models/,
+    # which is gitignored: it is derived from the corpus and rebuilds in
+    # seconds.
+    "INTENT_MODEL_FILE": "intent_classifier.joblib",
+    # Calibrated on the 31 French rows of faq_test.csv, 24 answerable and 7
+    # unanswerable by design, against an index of 120 French phrasings (5 per
+    # entry). At 0.625 the retrieval answers 13 of the 24 correctly at 86.7%
+    # precision and refuses 100% of the unanswerable ones.
+    #
+    # Chosen on the safe side deliberately: below the threshold the call goes
+    # to a human, and a confidently wrong answer about fasting or preparation
+    # is far worse than a transfer. 0.600 would answer one more correctly but
+    # lets one unanswerable question through, which is the wrong direction to
+    # trade on a medical line.
+    #
+    # Re-measure after any change to faq.csv: adding the paraphrases moved this
+    # from 0.575 to 0.625, because every score rose.
+    "FAQ_ACCEPT_THRESHOLD": 0.625,
     "EXAM_FUZZY_THRESHOLD": 82,
     "FRUSTRATION_ESCALATE_THRESHOLD": 0.70,
     "MAX_TURNS_BEFORE_ESCALATION": 8,
@@ -284,10 +351,23 @@ def load_settings(env_file: Path | None = None) -> Settings:
         tts_sample_rate=_as_int("TTS_SAMPLE_RATE"),
         language=_as_str("LANGUAGE"),
         embedding_model=_as_str("EMBEDDING_MODEL"),
+        embedding_dim=_as_int("EMBEDDING_DIM"),
+        qdrant_host=_as_str("QDRANT_HOST"),
+        qdrant_port=_as_int("QDRANT_PORT"),
+        qdrant_api_key=_raw("QDRANT_API_KEY"),
+        intent_collection=_as_str("INTENT_COLLECTION"),
+        faq_collection=_as_str("FAQ_COLLECTION"),
+        intent_top_k=_as_int("INTENT_TOP_K"),
+        faq_top_k=_as_int("FAQ_TOP_K"),
         min_snr_db=_as_float("MIN_SNR_DB"),
         min_confidence=_as_float("MIN_CONFIDENCE"),
         intent_accept_threshold=_as_float("INTENT_ACCEPT_THRESHOLD"),
         intent_margin=_as_float("INTENT_MARGIN"),
+        min_utterance_words=_as_int("MIN_UTTERANCE_WORDS"),
+        min_utterance_letters=_as_int("MIN_UTTERANCE_LETTERS"),
+        medical_probability_floor=_as_float("MEDICAL_PROBABILITY_FLOOR"),
+        intent_min_probability=_as_float("INTENT_MIN_PROBABILITY"),
+        intent_model_file=_as_str("INTENT_MODEL_FILE"),
         faq_accept_threshold=_as_float("FAQ_ACCEPT_THRESHOLD"),
         exam_fuzzy_threshold=_as_int("EXAM_FUZZY_THRESHOLD"),
         frustration_escalate_threshold=_as_float("FRUSTRATION_ESCALATE_THRESHOLD"),

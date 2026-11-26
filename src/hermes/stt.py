@@ -30,10 +30,15 @@ from hermes.config import get_settings
 #: The sample rate Whisper expects.
 TARGET_SR = 16_000
 
-#: How many catalogue terms go into the initial prompt. Whisper's text window
-#: is 224 tokens and it degrades when the prompt crowds it out, so this is kept
-#: well short of the limit.
-MAX_PROMPT_TERMS = 60
+#: How many terms go into the initial prompt in total.
+#:
+#: Measured, not guessed. At 60 terms the prompt reached 866 characters —
+#: roughly 220 tokens against Whisper's 224-token window — and adding the
+#: safety vocabulary *raised* WER from 0.256 to 0.266 while fixing none of the
+#: safety errors it targeted. The prompt was not gaining vocabulary, it was
+#: trading it. 30 keeps the hand-written safety and modality terms and drops
+#: the long tail mined from the catalogue.
+MAX_PROMPT_TERMS = 30
 
 #: Modality names and stems worth biasing towards, whatever the catalogue holds.
 CORE_VOCABULARY = [
@@ -55,7 +60,28 @@ CORE_VOCABULARY = [
     "à jeun",
     "doppler",
     "gadolinium",
+]
+
+#: Safety vocabulary, biased for separately from the exam names.
+#:
+#: These are the words whose mistranscription is dangerous rather than merely
+#: wrong: the measured failures were "broches" heard as "brosses" and "à
+#: l'iode" as "alleraute", both on sentences that had to reach a human. Getting
+#: Whisper to write them correctly is the cheapest of the three available fixes
+#: — cheaper than repairing the text afterwards, and cheaper than widening the
+#: rules to cover every mangling.
+SAFETY_VOCABULARY = [
+    "broches",
+    "prothèse",
+    "stimulateur cardiaque",
     "pacemaker",
+    "implant",
+    "clips",
+    "iode",
+    "produit de contraste",
+    "anticoagulant",
+    "allergie",
+    "enceinte",
 ]
 
 #: Words to drop when mining the catalogue: they carry no acoustic difficulty.
@@ -127,8 +153,16 @@ def exam_vocabulary(
     settings = get_settings()
     path = Path(exams_csv) if exams_csv is not None else settings.paths.raw / "exams.csv"
 
-    terms: list[str] = list(CORE_VOCABULARY)
-    seen = {_fold(term) for term in terms}
+    # Safety vocabulary first: if the prompt ever has to be truncated, the
+    # words whose mistranscription is dangerous are the ones to keep. The two
+    # lists overlap ("produit de contraste" is in both), so they are merged
+    # rather than concatenated.
+    terms: list[str] = []
+    seen: set[str] = set()
+    for term in list(SAFETY_VOCABULARY) + list(CORE_VOCABULARY):
+        if _fold(term) not in seen:
+            terms.append(term)
+            seen.add(_fold(term))
 
     if path.exists():
         candidates: dict[str, int] = {}

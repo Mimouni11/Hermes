@@ -20,9 +20,19 @@ scikit-learn
 torch
 sentence-transformers
 rapidfuzz
+# French word frequencies, used by the lexicon repair to tell a real word from
+# a mistranscription: "brosses" is French and must not be rewritten, while
+# "écographie" (zipf 1.2 against "échographie" 3.25) is a transcription error.
+wordfreq
+
+# --- vector store ---
+# Server runs in Docker; see docker-compose.yml. Tested against Qdrant 1.20.2.
+qdrant-client
 
 # --- language models ---
-google-generativeai
+# google-genai, not google-generativeai: the latter is deprecated and its
+# repository is now named deprecated-generative-ai-python.
+google-genai
 ollama
 
 # --- demo UI ---

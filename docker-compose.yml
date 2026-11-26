@@ -1,0 +1,37 @@
+# Qdrant, the vector store behind the intent gate and the FAQ retrieval.
+#
+#   docker compose up -d        start it
+#   docker compose down         stop it, keep the data
+#   docker compose down -v      stop it and delete the collections
+#
+# The dashboard is at http://localhost:6333/dashboard once it is up.
+#
+# Storage is a bind mount into data/processed/, which is gitignored like
+# everything else generated — the collections rebuild from the corpora with
+# scripts/build_intent_centroids.py and scripts/build_faq_index.py, so nothing
+# here is worth keeping in the repo.
+
+services:
+  qdrant:
+    # Pinned to what was actually pulled and tested against, so a rebuild in
+    # December gets the same engine rather than whatever is current then.
+    image: qdrant/qdrant:v1.20.2
+    container_name: hermes-qdrant
+    restart: unless-stopped
+    ports:
+      # 6333 REST and the dashboard, 6334 gRPC. qdrant-client uses REST by
+      # default; gRPC is faster for bulk upserts and is worth switching to if
+      # indexing the corpora ever gets slow.
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - ./data/processed/qdrant:/qdrant/storage
+    environment:
+      # Quieter logs; set to DEBUG when a query is not matching what you expect.
+      QDRANT__LOG_LEVEL: INFO
+      # No API key: this listens on localhost only and holds a school project's
+      # FAQ. Set QDRANT__SERVICE__API_KEY here and QDRANT_API_KEY in .env if it
+      # is ever exposed beyond this machine.
+    # No healthcheck: the image carries no shell or curl, so the usual
+    # `curl -f localhost:6333/healthz` test cannot run inside the container.
+    # The client retries on connect instead.

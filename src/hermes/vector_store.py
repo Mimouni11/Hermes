@@ -71,22 +71,55 @@ def client(host: str | None = None, port: int | None = None) -> Any:
             port=where[1],
             api_key=settings.qdrant_api_key,
             timeout=30,
+            # The client/server version handshake warns on every call when it
+            # cannot reach the server, which buries the real error. The pinned
+            # compose file is what keeps the versions in step.
+            check_compatibility=False,
         )
     return _CLIENTS[where]
 
 
-def ping() -> bool:
-    """Whether the server answers. Used to fail with advice, not a stack trace."""
+#: Remembers whether the server answered, so a suite full of skips does not
+#: pay the connection timeout once per test.
+_REACHABLE: bool | None = None
+
+#: Seconds to wait when only asking "is it there". Short on purpose: the
+#: answer when Qdrant is down should arrive immediately, not after a retry
+#: budget meant for real queries.
+PING_TIMEOUT = 2.0
+
+
+def ping(force: bool = False) -> bool:
+    """Whether the server answers. Used to fail with advice, not a stack trace.
+
+    The result is cached for the process. ``force=True`` re-checks, which is
+    what to use after starting the container without restarting Python.
+    """
+    global _REACHABLE
+    if _REACHABLE is not None and not force:
+        return _REACHABLE
+
+    settings = get_settings()
     try:
-        client().get_collections()
-        return True
+        from qdrant_client import QdrantClient
+
+        probe = QdrantClient(
+            host=settings.qdrant_host,
+            port=settings.qdrant_port,
+            api_key=settings.qdrant_api_key,
+            timeout=PING_TIMEOUT,
+            check_compatibility=False,
+        )
+        probe.get_collections()
+        _REACHABLE = True
     except Exception:  # noqa: BLE001 — any failure means "not usable"
-        return False
+        _REACHABLE = False
+    return _REACHABLE
 
 
 def require_server() -> None:
     """Raise with the command to run when Qdrant is not up."""
-    if not ping():
+    if not ping(force=True):
         settings = get_settings()
         raise RuntimeError(
             f"Qdrant is not answering on {settings.qdrant_host}:"

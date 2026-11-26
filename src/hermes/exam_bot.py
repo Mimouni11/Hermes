@@ -104,9 +104,27 @@ LATERALITY_PATTERN = re.compile(
 #: that the radiologist decides, not something the caller distinguishes by
 #: name. Only two bases are actually split by it.
 CONTRAST_PATTERN = re.compile(
-    r"\s*\b(?:avec|sans)\s+injection\b"
-    r"|\s*\b(?:avec|sans)\s+(?:produit\s+de\s+)?contraste\b"
+    r"\s*\b(?:avec|sans|pas|non)\s+injection\b"
+    r"|\s*\bpas\s+d\s+injection\b"
+    r"|\s*\b(?:avec|sans|pas|non)\s+(?:produit\s+de\s+)?contraste\b"
+    r"|\s*\b(?:pas|non)\s+injectee?s?\b"
     r"|\s*\binjectee?s?\b"
+)
+
+#: The forms that mean *no* injection, checked before the pattern above —
+#: because that one matches the injection word inside every one of them.
+#:
+#: Measured need: "Une IRM du cerveau, pas injectée" resolved to `EX002 IRM
+#: cérébrale avec injection`. The caller got the opposite of what they asked
+#: for, together with the injected exam's preparation — bilan rénal, metformin
+#: and allergy warnings. `sans injection` was handled; `pas` and `non` were
+#: not, and those are how people actually say it.
+NO_CONTRAST_PATTERN = re.compile(
+    r"\b(?:sans|pas|non)\s+injectee?s?\b"
+    r"|\b(?:sans|pas|non)\s+injection\b"
+    r"|\bpas\s+d\s+injection\b"
+    r"|\b(?:sans|pas|non)\s+(?:produit\s+de\s+)?contraste\b"
+    r"|\bsans\s+gadolinium\b"
 )
 
 #: Modality words as the catalogue actually writes them, with counts:
@@ -157,9 +175,29 @@ def modalities_in(text: str) -> set[str]:
     return found
 
 
+#: "droit" is also the French for a *right* in the entitlement sense, and
+#: callers use it that way: "j'ai le droit de passer une IRM du genou ?".
+#:
+#: Measured need: that sentence resolved to `EX034 IRM du genou droit`. The
+#: caller never named a side, so the correct answer is to ask which knee — and
+#: because the word is stripped from the query as a slot, the trace did not
+#: even show where the side had come from.
+#:
+#: Only the determiner form is excluded. "le droit"/"les droits" is the noun;
+#: "le genou droit", "le côté droit" and "celle de droite" all put another
+#: word between the determiner and the side, so they are untouched. The last
+#: of those is a real `exam_test_t3.csv` row.
+_PERMISSION = re.compile(r"\b(?:le|les)\s+droits?\b")
+
+
+def _without_permission(folded: str) -> str:
+    """Drop "le droit"/"les droits" so it cannot be read as a side."""
+    return " ".join(_PERMISSION.sub(" ", folded).split())
+
+
 def laterality_in(text: str) -> str | None:
     """Which side a string names: "droite", "gauche", "bilatéral", or None."""
-    folded = fold(text)
+    folded = _without_permission(fold(text))
     if re.search(rf"\b(?:{_BILATERAL})\b", folded):
         return "bilatéral"
     right = re.search(r"\bdroits?\b|\bdroites?\b", folded)
@@ -178,7 +216,7 @@ def laterality_in(text: str) -> str | None:
 def contrast_in(text: str) -> str | None:
     """Whether a string asks for injection: "oui", "non", or None if silent."""
     folded = fold(text)
-    if re.search(r"\bsans\s+injection\b|\bsans\s+(?:produit\s+de\s+)?contraste\b", folded):
+    if NO_CONTRAST_PATTERN.search(folded):
         return "non"
     if CONTRAST_PATTERN.search(folded):
         return "oui"
@@ -192,7 +230,8 @@ def base_phrase(text: str) -> str:
     at match time, so both sides of the comparison lose the same words. The
     slots are read separately by `laterality_in` and `contrast_in`.
     """
-    without_slots = CONTRAST_PATTERN.sub(" ", LATERALITY_PATTERN.sub(" ", fold(text)))
+    folded = _without_permission(fold(text))
+    without_slots = CONTRAST_PATTERN.sub(" ", LATERALITY_PATTERN.sub(" ", folded))
     return " ".join(without_slots.split())
 
 
@@ -425,6 +464,14 @@ class ExamIndex:
         return None
 
     def __len__(self) -> int:
+        """How many bases. Note this makes an *empty* index falsy.
+
+        Which is why every caller selects the process-wide index with
+        ``if index is None`` rather than ``index or get_index()``. The short
+        form silently swapped an explicitly-passed empty catalogue — what a
+        test or a holdout harness uses to assert that nothing should match —
+        for the real one, and answered from it with five confident candidates.
+        """
         return len(self.bases)
 
 
@@ -650,7 +697,7 @@ def rank(
 
     from rapidfuzz import process
 
-    catalogue = index or get_index()
+    catalogue = get_index() if index is None else index
     pool = list(catalogue.bases)
 
     # The modality filter is soft. It narrows the pool when it can and steps
@@ -697,7 +744,7 @@ def resolve(
     modes are deliberately distinct from a low score: the match was certain and
     a field is absent, which is a different situation and a different question.
     """
-    catalogue = index or get_index()
+    catalogue = get_index() if index is None else index
     members = [catalogue.exams[i] for i in base.exam_ids if i in catalogue.exams]
     if not members:
         return None, Reason.LOW_SCORE
@@ -796,7 +843,7 @@ def confusable_label(
     The CSV's own wording is preferred over anything assembled here, because it
     was written to be read to a caller.
     """
-    catalogue = index or get_index()
+    catalogue = get_index() if index is None else index
     for row in catalogue.confusables:
         pair = {row.get("a"), row.get("b")}
         if pair & set(first.exam_ids) and pair & set(second.exam_ids):
@@ -839,7 +886,7 @@ def _llm_choice(
         prompt=prompt,
         system=EXAM_SELECTION_SYSTEM,
         temperature=0.0,
-        timeout=settings.llm_timeout_s,
+        timeout=settings.llm_timeout_exam_s,
         key=key,
         json_mode=True,
     )
@@ -905,7 +952,7 @@ def identify(
     settings = get_settings()
     floor = settings.exam_fuzzy_threshold if threshold is None else threshold
     gap = settings.exam_margin if margin is None else margin
-    catalogue = index or get_index()
+    catalogue = get_index() if index is None else index
 
     trace: list[str] = []
 

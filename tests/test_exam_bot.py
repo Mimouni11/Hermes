@@ -49,6 +49,72 @@ def identify(text: str, index: exam_bot.ExamIndex) -> exam_bot.ExamMatch:
     return exam_bot.identify(text, index, threshold=82, margin=8, repair=False, use_llm=False)
 
 
+# --------------------------------------------------------------------------
+# Reading the slots out of what the caller said
+# --------------------------------------------------------------------------
+
+@pytest.mark.parametrize(('text', 'expected'), [
+    ('IRM cérébrale avec injection', 'oui'),
+    ('IRM cérébrale injectée', 'oui'),
+    ('IRM cérébrale sans injection', 'non'),
+    ('IRM du cerveau pas injectée', 'non'),
+    ('une IRM du cerveau non injectée', 'non'),
+    ("IRM du cerveau sans produit de contraste", 'non'),
+    ("IRM du cerveau pas d'injection", 'non'),
+    ('IRM cérébrale', None),
+])
+def test_negated_injection_is_not_read_as_injected(text: str, expected) -> None:
+    """"pas injectée" is the opposite of "injectée", not a mention of it.
+
+    The measured failure: "Une IRM du cerveau, pas injectée" resolved to
+    `EX002 IRM cérébrale avec injection`. The caller got the opposite of what
+    they asked for, with the injected exam's preparation attached — bilan
+    rénal, metformin and allergy warnings. Only `sans` was handled.
+    """
+    assert exam_bot.contrast_in(text) == expected
+
+
+@pytest.mark.parametrize(('text', 'expected'), [
+    ("j'ai le droit de passer une IRM du genou", None),
+    ("est-ce que j'ai le droit à une IRM du genou ?", None),
+    ('les droits du patient', None),
+    ('IRM du genou droit', 'droite'),
+    ('IRM du genou côté droit', 'droite'),
+    ("la radio de ma cheville, celle de droite", 'droite'),
+    ('IRM du genou gauche', 'gauche'),
+    ('radiographie des deux genoux', 'bilatéral'),
+])
+def test_droit_as_entitlement_is_not_a_side(text: str, expected) -> None:
+    """"le droit" is a noun. "le genou droit" is a side.
+
+    The measured failure: "J'ai le droit de passer une IRM du genou ?" matched
+    `EX034 IRM du genou droit` — a silent booking of the right knee from a
+    question about entitlement, with the word stripped from the query so the
+    trace did not show where the side came from.
+
+    Only the determiner form is excluded, which is why "celle de droite" — a
+    real row of `exam_test_t3.csv` — still reads as a side.
+    """
+    assert exam_bot.laterality_in(text) == expected
+
+
+def test_an_explicitly_empty_index_is_honoured() -> None:
+    """An empty catalogue means nothing matches, not "use the real one".
+
+    `ExamIndex.__len__` makes an empty index falsy, so `index or get_index()`
+    silently substituted the process-wide catalogue and answered from it with
+    five confident candidates. A harness asserting "nothing should match" was
+    being told about the real 173 exams instead.
+    """
+    empty = exam_bot.ExamIndex(bases=(), exams={}, confusables=(), langs=('fr',))
+
+    result = identify('IRM du genou droit', empty)
+
+    assert result.status is exam_bot.Status.NOT_FOUND
+    assert result.exam_id is None
+    assert result.candidates == ()
+
+
 @pytest.mark.parametrize(('text', 'exam_id'), [
     ('IRM du genou droit', 'EX034'),
     ('Radio des poumons', 'EX075'),

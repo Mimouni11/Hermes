@@ -116,6 +116,10 @@ class Settings:
     safety_flag_max_zipf: float
     #: Hard budget for one LLM call before the stored answer is used instead.
     llm_timeout_s: float
+    #: Budget for the FAQ answer call, whose fallback is the stored answer.
+    llm_timeout_faq_s: float
+    #: Budget for the exam selection call, whose fallback is a question.
+    llm_timeout_exam_s: float
     #: Retrieval score the stored answer needs to be spoken without the model.
     faq_fallback_threshold: float
     #: And how far top-1 must lead top-2 on that path.
@@ -298,7 +302,26 @@ DEFAULTS: dict[str, object] = {
     # not a safety margin — it is what keeps a turn inside the 5-second
     # target at all. Past it, the stored FAQ answer is spoken instead, which
     # is the centre's own text and needs no model.
+    # The generic default, for any call that does not name its own path.
     "LLM_TIMEOUT_S": 2.0,
+    # The two paths are budgeted separately because their fallbacks are not
+    # comparable, and a single number was quietly serving both.
+    #
+    # FAQ: a timeout falls back to the centre's stored answer, which is a
+    # publishable reply. Spending longer buys only better phrasing, so the
+    # budget stays where WP3 measured it.
+    "LLM_TIMEOUT_FAQ_S": 2.0,
+    # Exam: a timeout falls back to a clarifying question, which costs the
+    # caller a turn and cannot produce a wrong exam. So the risk of waiting
+    # is lower here and the risk of not waiting is higher.
+    #
+    # Measured need: three live calls on this key returned in 3.59 s, 2.12 s
+    # and 0.90 s, so a 2.0 s budget misses the majority of successful
+    # responses — the WP4 evaluation timed out on 5 of 6 T3 fallback calls and
+    # 7 of 9 on T4. 3.5 s clears two of those three observed latencies while
+    # staying inside the 5-second-per-turn target with the ~1 s the rest of
+    # the turn costs.
+    "LLM_TIMEOUT_EXAM_S": 3.5,
     # When the LLM call fails, the stored answer is spoken only from a
     # retrieval this confident. Calibrated for **zero wrong answers** on the
     # fallback path, because the fallback has no relevance check behind it:
@@ -335,13 +358,21 @@ DEFAULTS: dict[str, object] = {
     # a second.
     "EXAM_INDEX_FILE": "exam_index.json",
     # WP4 step 5 (scripts/calibrate_exam.py --floor 82 --margin 8).
-    # At margin 8 the floor of 82 gives 231/905 correct and 137/905 wrong
+    # At margin 8 the floor of 82 gives 231/841 correct and 137/841 wrong
     # resolutions on T1, and 20/22 correct with 0 wrong on T2. A floor of 85
     # loses 13 correct T1 resolutions and avoids one wrong resolution.
+    #
+    # The T1 denominator is 841, not 905: the sweep now excludes the 64
+    # samples whose base the holdout would empty, which it previously scored.
+    # Re-running the sweep after that fix left both the correct and the wrong
+    # counts unchanged — every excluded sample had been counted as withheld,
+    # so the exclusion corrects the clarify rate and the denominator and does
+    # not move the thresholds.
     "EXAM_FUZZY_THRESHOLD": 82,
-    # Going from margin 5 to 8 at floor 82 avoids 29 wrong T1 resolutions.
-    # T2, the T3 cross-check, and the five named transfers keep their counts.
-    # Margin 10 costs a correct T2 match.
+    # Going from margin 5 to 8 at floor 82 avoids 29 wrong T1 resolutions
+    # (166 -> 137), confirmed on the corrected sample. T2, the T3 cross-check
+    # and the five named transfers keep their counts. Margin 10 costs a
+    # correct T2 match.
     "EXAM_MARGIN": 8.0,
     # Minimum top score for the step 6 fallback band [65, 82). On T3, the
     # correct ID is resolvable in the top five in 6 of 8 eligible cases.
@@ -521,6 +552,8 @@ def load_settings(env_file: Path | None = None) -> Settings:
         safety_flag_context_ratio=_as_float("SAFETY_FLAG_CONTEXT_RATIO"),
         safety_flag_max_zipf=_as_float("SAFETY_FLAG_MAX_ZIPF"),
         llm_timeout_s=_as_float("LLM_TIMEOUT_S"),
+        llm_timeout_faq_s=_as_float("LLM_TIMEOUT_FAQ_S"),
+        llm_timeout_exam_s=_as_float("LLM_TIMEOUT_EXAM_S"),
         faq_fallback_threshold=_as_float("FAQ_FALLBACK_THRESHOLD"),
         faq_fallback_margin=_as_float("FAQ_FALLBACK_MARGIN"),
         faq_accept_threshold=_as_float("FAQ_ACCEPT_THRESHOLD"),

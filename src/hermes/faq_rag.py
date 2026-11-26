@@ -313,7 +313,7 @@ def spoken_answer(
         ),
         system=PHRASING_SYSTEM,
         temperature=0.2,
-        timeout=timeout,
+        timeout=settings.llm_timeout_faq_s if timeout is None else timeout,
         key=answer_cache_key(question, passages),
     )
 

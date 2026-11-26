@@ -664,7 +664,9 @@ def main() -> int:
     started = time.perf_counter()
     if llm.warm():
         print(f"  LLM ready in {time.perf_counter() - started:.1f} s "
-              f"({settings.gemini_model}, budget {settings.llm_timeout_s}s)")
+              f"({settings.gemini_model}, budgets: FAQ "
+              f"{settings.llm_timeout_faq_s:g}s, exam "
+              f"{settings.llm_timeout_exam_s:g}s)")
     else:
         print("  ! LLM unavailable — the stored FAQ answers will be used")
 

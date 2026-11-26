@@ -1,7 +1,14 @@
 # WP6 — Agent level 2, booking, and dialogue state
 
-**Status:** draft, not started. This page exists to hold the things WP2 and
-WP3 deliberately deferred, so they are not rediscovered late.
+**Status:** draft, not started. This page exists to hold the things WP2, WP3
+and WP4 deliberately deferred, so they are not rediscovered late.
+
+> **Raised in WP4, owned by WP7:** the exam selection call sends the caller's
+> repaired utterance to Gemini, as the FAQ answer call has since WP3. The model
+> cannot choose among five candidates without the words, so this is a question
+> about what may leave the building on a live call rather than a prompt to
+> redact. It belongs with WP7's anonymised logging, next to the decision about
+> what a transcript keeps.
 
 **Done when:** a caller books, moves or cancels an appointment end to end, in
 one LLM call per turn, with the exam re-checked against the gazetteer before

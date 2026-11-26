@@ -69,21 +69,32 @@ changes — the numbers are only valid for the thing they were measured on.
 *after* transcription, so the check belongs in `pipeline.py` next to the
 repeat-counting logic, which is still a stub.
 
-The intent, FAQ, fuzzy-match and frustration thresholds all have defaults
-carried over from the plan and have **not** been calibrated, because the
-modules that use them are not written yet:
+Most thresholds are now calibrated against a named test set, and `config.py`
+carries the run that produced each one beside the value. This table is a map
+of where to look, not a second copy of the numbers — the comments in
+`config.py` are the record, because a value and its justification drifting
+apart is worse than either alone.
 
-| Key | Default | State |
+| Key | Value | Calibrated on |
 |---|---|---|
-| `INTENT_ACCEPT_THRESHOLD` | `0.55` | uncalibrated |
-| `INTENT_MARGIN` | `0.08` | uncalibrated |
-| `FAQ_ACCEPT_THRESHOLD` | `0.60` | uncalibrated |
-| `EXAM_FUZZY_THRESHOLD` | `82` | uncalibrated |
-| `FRUSTRATION_ESCALATE_THRESHOLD` | `0.70` | uncalibrated |
+| `INTENT_ACCEPT_THRESHOLD` | `0.50` | 222 French examples, leave-one-out, vs 28 held-out out-of-scope — [WP3](WP3.md) |
+| `INTENT_MIN_PROBABILITY` | `0.55` | cross-validated, the lever that actually works |
+| `FAQ_ACCEPT_THRESHOLD` | `0.625` | 31 rows of `faq_test.csv`; re-measure after any `faq.csv` edit |
+| `FAQ_FALLBACK_THRESHOLD` | `0.72` | for **zero** wrong answers on the no-model path |
+| `EXAM_FUZZY_THRESHOLD` | `82` | T1 catalogue holdout + `exam_test_t3.csv` — [WP4](WP4.md) |
+| `EXAM_MARGIN` | `8.0` | the gate that catches a bare "scanner" scoring 100 |
+| `EXAM_LLM_THRESHOLD` | `65` | lower bound of the fallback band `[65, 82)` |
+| `LLM_TIMEOUT_FAQ_S` | `2.0` | fallback is the stored answer, so waiting buys only phrasing |
+| `LLM_TIMEOUT_EXAM_S` | `3.5` | p50 reply 1.62 s, 13 % timeout rate |
+| `INTENT_MARGIN` | `0.08` | **uncalibrated** — superseded by the probability floor |
+| `FRUSTRATION_ESCALATE_THRESHOLD` | `0.70` | **uncalibrated** — WP5 |
 | `MAX_TURNS_BEFORE_ESCALATION` | `8` | a policy choice, not a measurement |
 
-Treat an uncalibrated threshold as a placeholder. The plan asks for τ to be
-calibrated on the out-of-scope validation set, and that work is WP3.
+The exam matcher is implemented: `exam_bot.identify()` ranks 132 bases from a
+built gazetteer, resolves laterality and contrast as slots, and transfers the
+five `escalate` exams after resolution. See [WP4.md](WP4.md).
+
+Treat the two remaining uncalibrated values as placeholders.
 
 ## Secrets
 

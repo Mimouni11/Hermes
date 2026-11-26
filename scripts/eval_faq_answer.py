@@ -144,7 +144,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"{len(tests)} questions: {answerable} answerable, "
           f"{len(tests) - answerable} unanswerable by design")
     print(f"tau_faq = {settings.faq_accept_threshold}, "
-          f"LLM budget = {settings.llm_timeout_s}s\n")
+          f"LLM budget = {settings.llm_timeout_faq_s}s\n")
 
     # The stored answers, so a delivered reply can be traced to its source.
     entries = {

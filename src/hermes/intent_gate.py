@@ -71,6 +71,24 @@ HANDLED = {
 ALWAYS_TRANSFER = {
     Intent.MEDICAL_QUESTION,
     Intent.HUMAN_REQUEST,
+}
+
+#: Intents the agent declines itself, without troubling a person.
+#:
+#: A deliberate deviation from the brief, which sends anything outside
+#: logistics to a human. When the agent has *recognised* the request and the
+#: answer is a known no — the centre does not do physiotherapy, dentistry or
+#: vaccinations — a transfer costs a person's time to deliver the same
+#: sentence the agent already has. Declining is the better answer.
+#:
+#: It is safe here because the corpus separates the two cases: a complaint is
+#: labelled `human_request` ("Je veux réclamer, passez-moi le responsable"),
+#: not `off_topic`, so declining never swallows someone who needs a person.
+#:
+#: Note the asymmetry with OUT_OF_SCOPE, which is *not* declined. Not
+#: understanding someone is a reason to hand over; understanding them and
+#: knowing the answer is no is not.
+ALWAYS_DECLINE = {
     Intent.OFF_TOPIC,
 }
 
@@ -84,6 +102,8 @@ class Action(str, Enum):
     CLARIFY = "clarify"
     #: Nothing matched well enough; ask them to say it differently, once.
     REPHRASE = "rephrase"
+    #: Understood, and the answer is a known no. Say so; do not involve anyone.
+    DECLINE = "decline"
     #: Give the turn to a human.
     TRANSFER = "transfer"
 
@@ -234,6 +254,64 @@ def load_classifier(path: Any = None) -> dict[str, Any]:
     return _CLASSIFIER[key]
 
 
+#: The only FAQ entries allowed to answer a question the classifier called
+#: medical. Each one states centre procedure that is identical for every
+#: caller: what to remove, what to wear, how long it takes, what happens in
+#: the room, what to tell us beforehand.
+#:
+#: An allowlist rather than a score alone, because the scores proved
+#: untrustworthy for this. "Le scanner a vu une tache, c'est mauvais ?"
+#: retrieved `jeun` — *do I need to fast* — at 0.819, and "Mon IRM d'hier,
+#: elle montre quoi ?" retrieved `claustrophobie` at 0.705. Adding paraphrases
+#: lifted wrong matches faster than right ones, so a high cosine no longer
+#: means an unambiguous match and cannot be the only gate on a medical
+#: override.
+#:
+#: Entries about results, prices or anything a clinician decides are
+#: deliberately absent.
+POLICY_FAQ_IDS = frozenset({
+    "metal_bijoux",
+    "douleur_examen",
+    "deroulement",
+    "vetements",
+    "claustrophobie",
+    "grossesse",
+    "jeun",
+    "duree",
+    "documents",
+    "accompagnant",
+    "enfants",
+    "retard",
+})
+
+
+def _policy_answer(text: str) -> str | None:
+    """Return the FAQ id that answers this as centre policy, or None.
+
+    Three conditions, all required: the entry is on :data:`POLICY_FAQ_IDS`,
+    it clears a bar higher than the ordinary FAQ threshold, and it is the
+    clear winner rather than one of several near-equal matches. A borderline
+    retrieval hands over instead.
+    """
+    from hermes import faq_rag
+
+    settings = get_settings()
+    hits = faq_rag.search(text, k=2)
+    if not hits:
+        return None
+
+    best = hits[0]
+    if best.faq_id not in POLICY_FAQ_IDS:
+        return None
+    if best.score < settings.faq_override_threshold:
+        return None
+    # An unambiguous match stands clear of the runner-up. Two entries within a
+    # whisker of each other means the retrieval is guessing.
+    if len(hits) > 1 and (best.score - hits[1].score) < settings.intent_margin:
+        return None
+    return best.faq_id
+
+
 def predict_probabilities(text: str) -> dict[Intent, float]:
     """Return the classifier's probability for every intent."""
     from hermes import embeddings
@@ -322,7 +400,9 @@ def classify(
             "empty" if not stripped else "too_short", False,
         )
 
-    # 2. The deterministic medical rules, before any routing.
+    # 2. The deterministic medical rules, before any routing. Tier B only:
+    # these are the questions whose answer depends on the caller's own body,
+    # device or history, and nothing may override them.
     from hermes import escalation
 
     rule = escalation.medical_rule_hit(stripped)
@@ -364,12 +444,34 @@ def classify(
     }
 
     medical = probabilities.get(Intent.MEDICAL_QUESTION, 0.0)
-    if top_intent is not Intent.MEDICAL_QUESTION and (
-        medical >= settings.medical_probability_floor
-    ):
+    looks_medical = (
+        top_intent is Intent.MEDICAL_QUESTION
+        or medical >= settings.medical_probability_floor
+    )
+
+    # 4b. The centre's own written answer beats a *soft* medical call.
+    #
+    # "Faut-il retirer mes bijoux ?" and "je suis claustrophobe, comment ça se
+    # passe ?" are preparation questions the centre has already answered in
+    # writing. Reading that answer out is quoting policy, not practising
+    # medicine — and blocking them meant the `claustrophobie` and `grossesse`
+    # FAQ entries existed and could never be reached.
+    #
+    # This only applies to a classifier opinion. The tier B patterns above
+    # have already returned, so an implant or a symptom never arrives here
+    # however well it might have scored against the FAQ.
+    if looks_medical:
+        policy = _policy_answer(stripped)
+        if policy is not None:
+            return decide(
+                Intent.INFO, Action.ROUTE, f"faq_policy:{policy}", True,
+                probability=probabilities.get(Intent.INFO, 0.0), **common,
+            )
         return decide(
-            Intent.MEDICAL_QUESTION, Action.TRANSFER, "medical_floor", True,
-            probability=medical, **common,
+            Intent.MEDICAL_QUESTION, Action.TRANSFER,
+            "medical_floor" if top_intent is not Intent.MEDICAL_QUESTION
+            else "always_transfer:medical_question",
+            True, probability=max(medical, top_probability), **common,
         )
 
     # 5. Too unsure between classes to act.
@@ -379,7 +481,13 @@ def classify(
             probability=top_probability, **common,
         )
 
-    # 6. Recognised, and either handed over or routed.
+    # 6. Recognised, and either declined, handed over, or routed.
+    if top_intent in ALWAYS_DECLINE:
+        return decide(
+            top_intent, Action.DECLINE, f"always_decline:{top_intent.value}",
+            True, probability=top_probability, **common,
+        )
+
     if top_intent in ALWAYS_TRANSFER:
         return decide(
             top_intent, Action.TRANSFER, f"always_transfer:{top_intent.value}",
@@ -406,9 +514,44 @@ OUT_OF_SCOPE_REPLY = (
 )
 
 CLARIFY_REPLY = (
-    "Je veux être sûr de bien comprendre. Souhaitez-vous prendre un nouveau "
-    "rendez-vous, ou modifier un rendez-vous existant ?"
+    "Je veux être sûr de bien comprendre. Pouvez-vous reformuler votre "
+    "demande en quelques mots ?"
 )
+
+#: How to describe each intent when asking the caller which one they meant.
+#: Phrased as something a caller would recognise, not as the label.
+INTENT_DESCRIPTIONS: dict[Intent, str] = {
+    Intent.NEW_APPOINTMENT: "prendre un nouveau rendez-vous",
+    Intent.EXISTING_APPOINTMENT: "modifier ou annuler un rendez-vous existant",
+    Intent.INFO: "une question pratique sur le centre ou sur un examen",
+    Intent.MEDICAL_QUESTION: "une question médicale",
+    Intent.HUMAN_REQUEST: "parler à quelqu'un",
+    Intent.OFF_TOPIC: "autre chose",
+}
+
+
+def clarify_question(decision: "IntentDecision") -> str:
+    """Ask which of the two candidates the caller meant.
+
+    Built from the decision rather than fixed, because a fixed line asks the
+    wrong question: "Est-ce que je peux venir accompagné pour le scanner ?"
+    was answered with "nouveau rendez-vous ou rendez-vous existant ?", which
+    is neither of the two intents the classifier was actually torn between.
+    """
+    ranked = sorted(
+        decision.probabilities.items(), key=lambda kv: kv[1], reverse=True
+    )
+    candidates = [
+        INTENT_DESCRIPTIONS[intent]
+        for intent, _ in ranked[:2]
+        if intent in INTENT_DESCRIPTIONS
+    ]
+    if len(candidates) < 2:
+        return CLARIFY_REPLY
+    return (
+        f"Je veux être sûr de bien comprendre. Est-ce que c'est "
+        f"{candidates[0]}, ou plutôt {candidates[1]} ?"
+    )
 
 TRANSFER_REPLIES: dict[Intent, str] = {
     Intent.MEDICAL_QUESTION: (
@@ -416,13 +559,26 @@ TRANSFER_REPLIES: dict[Intent, str] = {
         "quelqu'un qui pourra vous renseigner."
     ),
     Intent.HUMAN_REQUEST: "Bien sûr, je vous passe un collègue.",
-    Intent.OFF_TOPIC: (
-        "Je m'occupe uniquement des rendez-vous d'imagerie médicale. "
-        "Je vous passe quelqu'un."
-    ),
 }
 
 DEFAULT_TRANSFER_REPLY = "Je vous passe un collègue."
+
+#: Spoken when the agent declines. It ends with an offer rather than a door:
+#: a caller who asked about physiotherapy may well also need a scan, and
+#: naming the modalities tells them what the centre actually does.
+DECLINE_REPLIES: dict[Intent, str] = {
+    Intent.OFF_TOPIC: (
+        "Le centre fait uniquement de l'imagerie médicale : IRM, scanner, "
+        "radiographie, échographie, mammographie. Nous ne proposons pas ce "
+        "service. Si vous avez besoin d'un examen d'imagerie, je peux vous "
+        "aider."
+    ),
+}
+
+DEFAULT_DECLINE_REPLY = (
+    "Le centre fait uniquement de l'imagerie médicale. Je ne peux pas vous "
+    "aider sur ce point."
+)
 
 
 def out_of_scope_reply() -> str:
@@ -439,7 +595,9 @@ def reply_for(decision: IntentDecision) -> str:
     if decision.action is Action.REPHRASE:
         return OUT_OF_SCOPE_REPLY
     if decision.action is Action.CLARIFY:
-        return CLARIFY_REPLY
+        return clarify_question(decision)
+    if decision.action is Action.DECLINE:
+        return DECLINE_REPLIES.get(decision.intent, DEFAULT_DECLINE_REPLY)
     if decision.action is Action.TRANSFER:
         return TRANSFER_REPLIES.get(decision.intent, DEFAULT_TRANSFER_REPLY)
     return ""

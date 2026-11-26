@@ -17,6 +17,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 from hermes.agent import AgentDecision, DialogueState
 from hermes.frustration import FrustrationScore
@@ -94,47 +95,98 @@ URGENCY_PATTERNS: tuple[str, ...] = (
 #: medical, or to judge whether a procedure is safe for them. Not an emergency,
 #: but never the agent's to answer.
 #:
-#: **Strong**: medical whatever else the sentence says. An implant, a
-#: pregnancy or a request for a judgement outranks any logistics phrasing
-#: around it — "je suis enceinte, que dois-je faire avant l'examen ?" is a
-#: safety question wearing a logistics coat.
-STRONG_ADVICE_PATTERNS: tuple[str, ...] = (
-    # Implants and contraindications
+#: **Tier B — absolute.** The answer depends on this caller's body, device or
+#: history, so no document can supply it and no retrieval score may override
+#: it. These transfer whatever else the sentence says and whatever the FAQ
+#: scores.
+#:
+#: Note what is *not* here any more: the bare words "enceinte" and
+#: "claustrophobe". The centre has written answers for the procedure those
+#: callers are asking about, and blocking them meant the `grossesse` and
+#: `claustrophobie` FAQ entries could never be reached. What stays absolute is
+#: the *risk* phrasing — "est-ce dangereux pour le bébé" is a judgement about
+#: one pregnancy, "que dois-je vous signaler" is the centre's own procedure.
+ABSOLUTE_PATTERNS: tuple[str, ...] = (
+    # Implants and contraindications: the answer depends on the device.
     r"pace[\s-]?maker",
     r"\bpacemaker\b",
     r"\bimplant",
     r"\bprothèse",
     r"\bstimulateur\s+cardiaque",
-    # Pregnancy and breastfeeding
-    r"\benceinte\b",
-    r"\bgrossesse\b",
+    r"\b(?:agrafes?|vis|plaques?|tiges?)\s+(?:\w+\s+)?"
+    r"(?:métal|metal|métallique|chirurgical)",
+    # Pregnancy and breastfeeding, but only where risk is being asked about.
+    # The preposition varies: "dangereux pour le bébé", "mal au bébé".
+    r"(?:dangereu|risqu|mal)\w*\s+(?:pour\s+|au\s+|à\s+|aux\s+)?"
+    r"(?:le\s+|mon\s+|l'\s*)?bébé",
+    r"(?:rayons?|radio|scanner|irm)\s+\w*\s*(?:dangereu|risqu)",
+    # "La grossesse pose un problème ?" asks whether a pregnancy is a risk,
+    # which is a judgement. "Je suis enceinte, que dois-je vous signaler ?"
+    # asks the centre's procedure, which the grossesse FAQ entry answers.
+    r"pose\s+(?:un\s+)?problème",
+    r"(?:grossesse|enceinte)[^.?!]*\b(?:problème|contre[\s-]indic|empêche)",
+    r"passe\s+dans\s+le\s+lait",
     r"j'?allaite",
     r"حامل",
-    r"\b7amla?\b",
-    # Asking for a judgement
+    # Asking for a judgement about their own case.
     r"c'?est\s+grave",
     r"c'?est\s+(?:un\s+)?cancer",
     r"c'?est\s+dangereux",
-    r"est[\s-]?(?:ce\s+)?(?:que\s+)?(?:c'?est|il\s+est|elle\s+est)?\s*dangereu",
     r"\bdangereux\b|\bdangereuse\b",
     r"\brisqué\b|\bris[qc]ue\s+pour\b",
+    r"je\s+risque\s+quelque\s+chose",
     r"\bnormal\s*\?",
     r"est\s+normal",
     r"ça\s+veut\s+dire\s+quoi",
     r"(?:veut|voulez)\s+dire\s+quoi",
     r"qu'?est[\s-]ce\s+que\s+(?:ça|ca)\s+veut\s+dire",
-    # Findings named outright
-    r"\bnodule\b|\btumeur\b|\bmasse\b|\blésion\b|\bhernie\b",
+    r"je\s+dois\s+m'?inquiéter",
+    r"\binquiétant\b",
+    # Asking what the images showed. "elle montre quoi" and "a vu une tache"
+    # are interpretation requests that reached the FAQ and matched nonsense —
+    # one scored 0.819 against "dois-je être à jeun".
+    r"montre\s+quoi|montrent\s+quoi",
+    r"(?:a|ont)\s+vu\s+(?:une?|des)\b",
+    r"c'?est\s+(?:mauvais|bon|inquiétant|anormal)",
+    r"\bmauvais\s+ou\s+pas\b",
+    # Radiation dose is a clinical question, not a price list.
+    r"combien\s+de\s+rayons",
+    r"\bdose\s+de\s+rayons|\birradiation\b",
+    # Findings named outright.
+    r"\bnodule\b|\btumeur\b|\bmasse\b|\blésion\b|\bhernie\b|\bkyste\b",
+    r"\barthrose\b|\bfracture\b|\bsclérose\b",
     r"\bdiagnostic\b",
-    # Medication and allergies
+    # Symptoms. Describing a body rather than asking about a procedure.
+    r"j'?ai\s+mal\s+(?:à|a|au|aux)\b",
+    r"\bvertiges?\b",
+    r"\bfièvre\b",
+    r"\bboule\s+au\b",
+    r"\bsaigne",
+    r"depuis\s+(?:hier|une\s+semaine|\w+\s+jours)",
+    # Which exam to have: that is a prescription, not a booking.
+    r"(?:quel|quels)\s+examens?\s+(?:je|dois|il\s+faut)",
+    # "une IRM ou un scanner" — the article varies with the noun, and only
+    # allowing "une" let "IRM ou un scanner pour mon dos" through to the FAQ.
+    r"(?:scanner|irm|radio|échographie)\s+ou\s+(?:une?\s+)?"
+    r"(?:irm|scanner|radio|échographie)",
+    r"(?:suffit|suffisant)\s+(?:non|\?)",
+    # Medication, allergies, organ function.
     r"\bmédicament",
-    r"(?:arrêter|continuer|prendre)\s+mon\s+traitement",
+    r"\bcalmant\b|\bsédatif\b|\banxiolytique\b",
+    r"(?:arrêter|continuer|prendre)\s+(?:mes|mon)\s+(?:traitement|médicament)",
+    r"\banticoagulant",
+    r"\bdiabétique\b",
+    r"\breins?\s+ne\s+marche|insuffisance\s+rénale",
     r"\ballergi",
+    r"\bréaction\s+à\s+l'?iode",
     r"دواء",
     r"حساسية",
     r"خطير",
     r"يوجع",
 )
+
+#: Kept for callers that still import the old name.
+STRONG_ADVICE_PATTERNS = ABSOLUTE_PATTERNS
 
 #: **Weak**: medical only when the sentence is not asking a logistics question.
 #: "Vous pouvez m'expliquer mon compte rendu ?" is a request to interpret;
@@ -202,18 +254,109 @@ def detect_urgency(text: str) -> bool:
     return _matches(text, URGENCY_PATTERNS) is not None
 
 
+#: Metal that is *inside* the caller. The object's name is deliberately not
+#: part of the match: Whisper transcribed "broches" as "brosses", and a list of
+#: implant nouns cannot be what a safety net depends on when the transcriber
+#: mangles exactly these words. What carries the meaning is the metal being in
+#: a body — "dans mes bras", "dans la tête" — whatever the noun was heard as.
+METAL_IN_BODY_PATTERNS: tuple[str, ...] = (
+    r"(?:métal|métallique|metal)\w*\s+dans\s+"
+    r"(?:la|le|les|mon|ma|mes|leur|l'|un|une)\b",
+    r"\bdans\s+(?:la|le|les|mon|ma|mes)\s+"
+    r"(?:bras|tête|jambe|corps|genou|épaule|dos|hanche|crâne|poitrine|cou)\b",
+    r"j'?ai\s+(?:des?|du|une?|plusieurs)\s+\w+\s+(?:en|de)\s+m[ée]tal",
+    r"j'?ai\s+du\s+m[ée]tal",
+    r"opéré\w*\s+(?:avec|et\s+j'?ai)",
+)
+
+#: Metal the caller is wearing, which comes off before the exam. A removal or
+#: wearing verb beside one of these vetoes the in-body rule — "retirer mes
+#: bijoux en métal" is the `metal_bijoux` FAQ entry, not a contraindication.
+#: Without this veto the in-body patterns swallow the whole preparation topic,
+#: which is how this rule broke the first time it was written.
+REMOVABLE_METAL_PATTERNS: tuple[str, ...] = (
+    r"(?:retir|enlev|ôt|garde|port|laiss)\w*\s+(?:\w+\s+){0,3}?"
+    r"(?:bijou|montre|boucle|piercing|bague|collier|chaîne|lunette|"
+    r"barrette|épingle|ceinture|soutien)",
+    r"(?:bijou|montre|boucle|piercing|bague|collier|chaîne|lunette)\w*"
+    r"[^.?!]*\b(?:retir|enlev|ôt|garde|port)",
+)
+
+
+def wears_removable_metal(text: str) -> bool:
+    """Whether the sentence is about metal the caller takes off."""
+    return _matches(text, REMOVABLE_METAL_PATTERNS) is not None
+
+
+def has_metal_in_body(text: str) -> bool:
+    """Whether the sentence describes metal inside the caller.
+
+    Vetoed by :func:`wears_removable_metal`, because jewellery and an implant
+    share every noun the sentence is likely to use.
+    """
+    if wears_removable_metal(text):
+        return False
+    return _matches(text, METAL_IN_BODY_PATTERNS) is not None
+
+
+def is_absolute(text: str) -> bool:
+    """Whether this is tier B: a question no document may answer.
+
+    Implants, allergies, organ function, symptoms, result interpretation and
+    "which exam should I have" all depend on the individual. A high-scoring
+    FAQ match must not override this.
+    """
+    if has_metal_in_body(text):
+        return True
+    if wears_removable_metal(text) and not _matches(
+        text, tuple(p for p in ABSOLUTE_PATTERNS if "métal" not in p)
+    ):
+        # Preparation: jewellery comes off, and nothing else in the sentence
+        # asks for a judgement.
+        return False
+    return _matches(text, ABSOLUTE_PATTERNS) is not None
+
+
 def detect_advice_request(text: str) -> bool:
     """Return whether an utterance asks for a diagnosis or medical advice.
 
-    A strong pattern decides on its own. A weak one only counts when the
+    An absolute pattern decides on its own. A weak one only counts when the
     sentence is not asking a logistics question: asking where to collect a CD
     is not asking what the CD says.
     """
-    if _matches(text, STRONG_ADVICE_PATTERNS):
+    if is_absolute(text):
         return True
     if not _matches(text, WEAK_ADVICE_PATTERNS):
         return False
     return _matches(text, RESULTS_LOGISTICS_PATTERNS) is None
+
+
+def check_transcript(
+    raw: str,
+    repaired: str | None = None,
+    safety_flags: tuple[Any, ...] = (),
+) -> str | None:
+    """Apply the medical rules to everything known about one turn.
+
+    Checks the raw transcript **and** the repaired one, because the repair can
+    go either way: it can restore a term the rules need ("écographie"), and it
+    can in principle remove one. Either text matching is enough — the rules
+    are a safety net, and a net is not improved by being choosy about which
+    thread catches.
+
+    A lexicon safety flag counts on its own. The flag means a word in the
+    transcript is probably a safety term that was misheard, and "probably" is
+    the right standard for deciding to involve a person.
+    """
+    for text in (raw, repaired):
+        if not text:
+            continue
+        hit = medical_rule_hit(text)
+        if hit:
+            return hit
+    if safety_flags:
+        return "lexicon_flag"
+    return None
 
 
 def medical_rule_hit(text: str) -> str | None:

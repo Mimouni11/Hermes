@@ -1,4 +1,18 @@
-"""Run WP4 T1–T4 and write paired per-case and summary reports."""
+"""Measure the WP4 gazetteer on T1–T4. No model is called.
+
+Deliberately model-free. An earlier version ran each case twice, with and
+without the LLM, and wrote both columns into one accuracy table. The LLM half
+turned out to be measuring a rate limit: 254 of 292 T1 invocations came back
+`error:LLMError` after the burst exhausted the free-tier quota, and the whole
+"LLM enabled" gain on T3 was one successful call.
+
+So the two questions are now asked separately. This script answers "how good
+is the matcher on its own", which is also what the demo falls back to whenever
+the model is slow. `eval_exam_llm.py` answers "does the model help, and is it
+there when needed".
+
+    uv run python scripts/eval_exam.py
+"""
 
 from __future__ import annotations
 
@@ -12,14 +26,13 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, replace
 from itertools import groupby
 from pathlib import Path
-from statistics import median
 from tempfile import TemporaryDirectory
 
 import jiwer
 
 from build_exam_index import build, read_csv
-from calibrate_exam import hold_out
-from hermes import exam_bot, llm
+from calibrate_exam import hold_out, survives_holdout
+from hermes import exam_bot
 from hermes.config import get_settings, set_settings
 from hermes.stt import normalise_for_wer
 
@@ -81,17 +94,32 @@ def replay(sample: Sample, rules: dict[str, str]) -> Sample:
     return replace(sample, tier="T4")
 
 
-def samples(raw: Path, exams: list[dict[str, str]], rules: dict[str, str]) -> list[Sample]:
+def samples(
+    raw: Path,
+    exams: list[dict[str, str]],
+    rules: dict[str, str],
+    index: exam_bot.ExamIndex,
+) -> list[Sample]:
     keywords = {
         norm for row in exams for phrase in row["keywords_fr"].split("|")
         if (norm := normalise_for_wer(phrase))
     }
-    t1 = [
-        Sample("T1", f"{row['id']}-{i}", phrase.strip(), frozenset([row["id"]]))
-        for row in exams
-        for i, phrase in enumerate(dict.fromkeys(row["keywords_fr"].split("|")), start=1)
-        if phrase.strip()
-    ]
+    # Samples whose base the holdout would empty are excluded, not scored:
+    # see `calibrate_exam.survives_holdout`. Scoring them counted a deleted
+    # answer as a wrong resolution.
+    t1: list[Sample] = []
+    t1_excluded = 0
+    for row in exams:
+        for i, phrase in enumerate(dict.fromkeys(row["keywords_fr"].split("|")), start=1):
+            if not phrase.strip():
+                continue
+            expected = frozenset([row["id"]])
+            if not survives_holdout(index, phrase.strip(), expected):
+                t1_excluded += 1
+                continue
+            t1.append(Sample("T1", f"{row['id']}-{i}", phrase.strip(), expected))
+    print(f"T1: {len(t1)} answerable samples, {t1_excluded} excluded by the holdout",
+          flush=True)
     t2 = [
         Sample("T2", row["id"], row["text"], frozenset([row["exam_id"]]))
         for row in read_csv(raw / "intents.csv")
@@ -130,14 +158,27 @@ def evaluate(case: Sample, index: exam_bot.ExamIndex, use_llm: bool) -> dict:
     }
 
 
-def report(rows: list[dict], rules: dict[str, str], warm: bool, settings) -> str:
+def report(
+    rows: list[dict],
+    rules: dict[str, str],
+    settings,
+    catalogue: dict[str, dict] | None = None,
+) -> str:
+    catalogue = catalogue or {}
     lines = [
-        "# WP4 exam identification evaluation", "",
-        f"Score floor {settings.exam_fuzzy_threshold}, margin {settings.exam_margin:g}, "
-        f"fallback floor {settings.exam_llm_threshold}, "
-        f"budget {settings.llm_timeout_s:g} s per model request.",
-        f"The configured model is `{settings.gemini_model}`. Client warm-up succeeded: {warm}.",
-        "The run started with an empty isolated cache, shared within this evaluation.", "",
+        "# WP4 exam identification — the gazetteer", "",
+        "**No model is called in this run.** Every number below is the "
+        "gazetteer and the decision layer on their own, which is what the "
+        "demo falls back to whenever the model is slow or unavailable.",
+        "",
+        "The LLM fallback is measured separately, in `exam_llm_eval.md`: "
+        "mixing the two put a rate-limited API inside the accuracy table and "
+        "made the gazetteer look worse than it is.",
+        "",
+        f"Score floor {settings.exam_fuzzy_threshold}, "
+        f"margin {settings.exam_margin:g}, "
+        f"fallback band floor {settings.exam_llm_threshold}.",
+        "",
         "| Set | Mode | Correct IDs / labelled | Wrong IDs / labelled | Clarified / expected "
         "| Premature IDs | Clarify rate |",
         "|---|---|---:|---:|---:|---:|---:|",
@@ -162,30 +203,47 @@ def report(rows: list[dict], rules: dict[str, str], warm: bool, settings) -> str
                 f"| {counts['wrong']}/{labelled} | {clarification} "
                 f"| {counts['premature']} | {clarified}/{len(run)} |"
             )
-    lines.extend([
-        "", "## Fallback usage", "",
-        "| Set | Invoked / rows | Cache hits | Live replies | Timeouts / uncached "
-        "| Other outcomes | Median uncached turn time |",
-        "|---|---:|---:|---:|---:|---:|---:|",
-    ])
-    for tier in ("T1", "T2", "T3", "T4"):
-        run = [r for r in groups[tier] if r["mode"] == "LLM enabled"]
-        if not run:
+    # Per-modality, which the brief asks for. Per-language is not reported:
+    # the scope is French only, so every row would be in one bucket. Grouped
+    # by the *expected* exam's modality, so a miss is counted against the
+    # modality that was asked for rather than the one that won.
+    lines.extend(["", "## By modality", "",
+                  "T2, T3 and T4 together, keyed on the expected exam.", "",
+                  "| Modality | Labelled | Correct | Wrong | Asked |",
+                  "|---|---:|---:|---:|---:|"])
+    buckets: dict[str, Counter] = defaultdict(Counter)
+    for row in rows:
+        if row["tier"] == "T1" or not row["expected"]:
             continue
-        invoked = [r for r in run if r["used_llm"]]
-        counts = Counter(r["llm"] for r in invoked)
-        uncached = [r["latency_s"] for r in invoked if r["llm"] != "cache"]
-        other = len(uncached) - counts["llm"] - counts["timeout"]
-        latency = f"{median(uncached):.3f} s" if uncached else "—"
-        timeout = f"{counts['timeout']}/{len(uncached)}" if uncached else "—"
+        first = row["expected"].split("|")[0]
+        modality = catalogue.get(first, {}).get("modality", "?")
+        buckets[modality]["labelled"] += 1
+        buckets[modality][row["outcome"]] += 1
+        if row["status"] == "clarify":
+            buckets[modality]["asked"] += 1
+    for modality, counts in sorted(buckets.items(), key=lambda kv: -kv[1]["labelled"]):
         lines.append(
-            f"| {tier} | {len(invoked)}/{len(run)} | {counts['cache']} | {counts['llm']} "
-            f"| {timeout} | {other} | {latency} |"
+            f"| {modality} | {counts['labelled']} | {counts['correct']} "
+            f"| {counts['wrong']} | {counts['asked']} |"
         )
+
     changed = Counter(r["replay"] for r in groups["T4 changed"] if r["mode"] == "Gazetteer")
+    asked = sum(r["status"] == "clarify" for r in rows if r["tier"] in ("T3", "T4"))
     lines.extend([
         "", "## Reading the results", "",
-        "- T1 removes the normalized and repaired query from all catalogue bases before ranking.",
+        f"- {asked} T3/T4 rows end in a question. The LLM fallback can only "
+        "act on the subset of those whose top score also sits in the band, "
+        "counted exactly in `exam_llm_eval.md`. No other row in this table "
+        "can change when the model is enabled.",
+        "- T1 removes the normalized and repaired query from all catalogue bases before "
+        "ranking, and **excludes the samples whose base that would empty**. For a lateral "
+        "pair every French keyword collapses to one phrase, so holding it out deletes the "
+        "base and the exam becomes unfindable by construction.",
+        "- That exclusion moved the T1 denominator from 905 to 841 and the clarify count "
+        "from 537 to 473. It left the correct and wrong counts untouched: every excluded "
+        "sample had been scored as withheld, not as a wrong resolution. So the margin "
+        "sweep that chose 8 was reading an inflated clarify rate, not an inflated error "
+        "rate, and re-running it on the corrected sample selected the same thresholds.",
         "- T2 contains source-corpus wording. T3 uses hand-written requests. The overlap audit "
         "compares contiguous keyword sequences after the project's WER normalization.",
         "- T4 is a **text replay**, using one longest observed substitution per matching request "
@@ -194,10 +252,8 @@ def report(rows: list[dict], rules: dict[str, str], warm: bool, settings) -> str
         "insertions and deletions, and clips rejected by the audio gate, are outside this "
         "replay. Its edit frequency does not "
         "estimate caller STT error rates.",
-        f"- Changed T4 inputs ({sum(changed.values())}/64): "
+        f"- Changed T4 inputs ({sum(changed.values())}/{len(groups['T4'])}): "
         + ", ".join(f"`{rule}` × {count}" for rule, count in sorted(changed.items())) + ".",
-        "- The median measures matcher wall time for uncached fallback invocations, including "
-        "timed-out calls. A live reply can contain a rejection or abstention.",
         f"- Observed substitution rules available to the replay: {len(rules)}.",
     ])
     return "\n".join(lines) + "\n"
@@ -206,12 +262,10 @@ def report(rows: list[dict], rules: dict[str, str], warm: bool, settings) -> str
 def main() -> None:
     settings = get_settings()
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--no-llm", action="store_true", help="only measure the gazetteer")
     parser.add_argument("--reports", type=Path, default=settings.paths.root / "reports")
     args = parser.parse_args()
     rules = replay_rules(args.reports / "stt_results.csv")
     exams = read_csv(settings.paths.raw / "exams.csv")
-    cases = samples(settings.paths.raw, exams, rules)
     payload = build(exams, read_csv(settings.paths.raw / "confusables.csv"), ["fr"])
     results = []
     with TemporaryDirectory(prefix="hermes-exam-eval-") as directory:
@@ -223,24 +277,21 @@ def main() -> None:
         if source.is_file():
             shutil.copyfile(source, temp / settings.lexicon_file)
         set_settings(replace(settings, paths=replace(settings.paths, processed=temp)))
-        warm = False if args.no_llm else llm.warm()
-        print(f"Client ready: {warm}", flush=True)
+        cases = samples(settings.paths.raw, exams, rules, index)
         for count, case in enumerate(cases, start=1):
             catalogue = hold_out(index, case.text) if case.tier == "T1" else index
             results.append(evaluate(case, catalogue, use_llm=False))
-            if not args.no_llm:
-                results.append(evaluate(case, catalogue, use_llm=True))
-            if count % 50 == 0 or count == len(cases):
-                print(f"{count}/{len(cases)} | {llm.USAGE.summary()}", flush=True)
+            if count % 200 == 0 or count == len(cases):
+                print(f"{count}/{len(cases)}", flush=True)
 
-    suffix = "_gazetteer" if args.no_llm else ""
-    with (args.reports / f"exam_eval{suffix}.csv").open("w", encoding="utf-8", newline="") as stream:
+    with (args.reports / "exam_eval.csv").open("w", encoding="utf-8", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=list(results[0]))
         writer.writeheader()
         writer.writerows(results)
-    (args.reports / f"exam_eval{suffix}.md").write_text(
-        report(results, rules, warm, settings), encoding="utf-8",
+    (args.reports / "exam_eval.md").write_text(
+        report(results, rules, settings, payload["exams"]), encoding="utf-8",
     )
+    print(f"wrote {args.reports / 'exam_eval.md'}")
 
 
 if __name__ == "__main__":

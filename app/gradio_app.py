@@ -6,11 +6,12 @@ quality gate's verdict and SNR, what Whisper actually heard and how confident
 it was, which intent rule fired, what the FAQ retrieved and at what score, and
 the reply Piper speaks.
 
-Three tabs:
+Four tabs:
 
 - **Tour d'appel** — an audio file or the microphone goes in, a spoken reply
   comes out, and every panel in between is visible.
 - **Texte** — the same routing without speaking, for debugging retrieval.
+- **Examens** — inspect exam identification, clarification and transfer.
 - **Voix** — type a line and hear it, with the text expansion shown, because
   a reference code read as a word is a failure you can only hear.
 
@@ -37,6 +38,7 @@ from hermes import (  # noqa: E402
     audio_quality,
     embeddings,
     escalation,
+    exam_bot,
     faq_rag,
     intent_gate,
     lexicon,
@@ -444,6 +446,44 @@ def on_speak(text: str):
         return None, f"**Erreur : {type(exc).__name__}**\n\n```\n{exc}\n```"
 
 
+def on_exam(text: str, use_llm: bool) -> tuple[str, list[list[str | float]], str, str]:
+    """Show one exam decision, along with the evidence used by the matcher."""
+    if not (text or "").strip():
+        return "_Écrivez une demande d'examen._", [], "", ""
+
+    started = time.perf_counter()
+    try:
+        index = exam_bot.get_index()
+        result = exam_bot.identify(text, index=index, use_llm=use_llm)
+    except RuntimeError as exc:
+        return "**Impossible d'identifier l'examen.**", [], "", str(exc)
+
+    elapsed = time.perf_counter() - started
+    labels = {
+        exam_bot.Status.MATCHED: "Examen identifié",
+        exam_bot.Status.CLARIFY: "Précision nécessaire",
+        exam_bot.Status.TRANSFER: "Transfert au secrétariat",
+        exam_bot.Status.NOT_FOUND: "Examen introuvable",
+    }
+    summary = [f"### {labels[result.status]}"]
+    if result.exam_id:
+        summary.append(f"**{index.exams[result.exam_id].name}** (`{result.exam_id}`)")
+    if result.question:
+        summary.append(result.question)
+    llm_status = "non sollicité" if use_llm else "désactivé"
+    if result.used_llm:
+        llm_status = "utilisé"
+    summary.append(
+        f"Motif `{result.reason.value}` · Score {result.score:.1f} · "
+        f"Marge {result.margin:.1f} · LLM {llm_status} · {elapsed:.3f} s"
+    )
+    candidates = [
+        [candidate.display, ", ".join(candidate.exam_ids), round(candidate.score, 1)]
+        for candidate in result.candidates
+    ]
+    return "\n\n".join(summary), candidates, result.repaired, "\n".join(result.trace)
+
+
 # --------------------------------------------------------------------------
 # The interface
 # --------------------------------------------------------------------------
@@ -466,6 +506,14 @@ EXAMPLES_TTS = [
     "Je ne peux pas répondre aux questions médicales. Je vous passe quelqu'un.",
 ]
 
+EXAMPLES_EXAM = [
+    "IRM du genou droit",
+    "IRM du genou",
+    "Radiographie du rachis cervical ou radiographie du rachis cervical dynamique",
+    "Coroscanner",
+    "Je dois passer une radio des poumons",
+]
+
 
 def build_ui() -> gr.Blocks:
     """Assemble the bench."""
@@ -475,7 +523,7 @@ def build_ui() -> gr.Blocks:
         gr.Markdown(
             "# hermes-voice — banc d'essai\n"
             "Chaque étape montre ce qu'elle a décidé : qualité audio, "
-            "transcription, routage, FAQ, réponse parlée."
+            "transcription, routage, FAQ, identification d’examen, réponse parlée."
         )
 
         with gr.Tab("Tour d'appel"):
@@ -527,6 +575,29 @@ def build_ui() -> gr.Blocks:
                 on_text,
                 inputs=[text_in, speak_text],
                 outputs=[text_reply, text_audio, text_routing, text_timing],
+            )
+
+        with gr.Tab("Examens"):
+            exam_in = gr.Textbox(
+                label="Demande d’examen", lines=2, placeholder="IRM du genou droit",
+            )
+            exam_llm = gr.Checkbox(value=False, label="Autoriser le recours au LLM")
+            exam_run = gr.Button("Identifier l’examen", variant="primary")
+            gr.Examples(EXAMPLES_EXAM, inputs=exam_in, label="Exemples")
+            exam_result = gr.Markdown()
+            exam_candidates = gr.Dataframe(
+                headers=["Examen candidat", "IDs du groupe", "Score"],
+                datatype=["str", "str", "number"], value=[], interactive=False,
+                label="Candidats classés",
+            )
+            repaired_exam = gr.Textbox(label="Texte après correction", interactive=False)
+            with gr.Accordion("Trace de décision", open=False):
+                exam_trace = gr.Textbox(show_label=False, lines=8, interactive=False)
+            exam_run.click(
+                on_exam,
+                inputs=[exam_in, exam_llm],
+                outputs=[exam_result, exam_candidates, repaired_exam, exam_trace],
+                api_name="identify_exam",
             )
 
         with gr.Tab("Voix"):

@@ -94,10 +94,32 @@ class Settings:
     min_utterance_letters: int
     #: P(medical) above which a turn is medical whatever else scores higher.
     medical_probability_floor: float
+    #: FAQ score above which the centre's own answer beats a soft medical call.
+    faq_override_threshold: float
     #: Below this top probability the gate asks rather than routes.
     intent_min_probability: float
     #: Filename of the fitted intent classifier inside models/.
     intent_model_file: str
+
+    # --- the lexicon repair layer ---
+    #: Filename of the built lexicon inside data/processed/.
+    lexicon_file: str
+    #: Similarity a token needs before a domain term may replace it.
+    repair_min_ratio: float
+    #: Zipf frequency above which a token counts as a real French word.
+    french_word_min_zipf: float
+    #: Similarity a token needs to raise a safety flag on its own.
+    safety_flag_min_ratio: float
+    #: Lower bar, usable only when the sentence is about imaging.
+    safety_flag_context_ratio: float
+    #: Above this frequency a word is too ordinary to be a fuzzy safety match.
+    safety_flag_max_zipf: float
+    #: Hard budget for one LLM call before the stored answer is used instead.
+    llm_timeout_s: float
+    #: Retrieval score the stored answer needs to be spoken without the model.
+    faq_fallback_threshold: float
+    #: And how far top-1 must lead top-2 on that path.
+    faq_fallback_margin: float
     faq_accept_threshold: float
     exam_fuzzy_threshold: int
     frustration_escalate_threshold: float
@@ -125,7 +147,19 @@ class Settings:
 # --------------------------------------------------------------------------
 
 DEFAULTS: dict[str, object] = {
-    "GEMINI_MODEL": "gemini-2.0-flash",
+    # Chosen by calling models.list on this key and benchmarking what came
+    # back, not from the plan — which named gemini-2.0-flash, now a 404.
+    #
+    #   gemini-3.8-flash        503 on every attempt, with backoff
+    #   gemini-3.1-flash-lite   503 on every attempt
+    #   gemini-3.5-flash-lite   3/3 calls, 3/3 valid JSON
+    #
+    # The newer Flash models are listed but not actually served to this free
+    # tier. Latency on the one that works ranged 0.89 s to 33.4 s, against a
+    # 5-second per-turn budget with roughly 1.5 s left after STT and TTS — so
+    # caching every response is load-bearing, not an optimisation, and Ollama
+    # stays the offline fallback the plan specifies.
+    "GEMINI_MODEL": "gemini-3.5-flash-lite",
     "OLLAMA_MODEL": "mistral",
     "USE_LOCAL_LLM": False,
     "STT_BACKEND": "faster-whisper",
@@ -169,7 +203,17 @@ DEFAULTS: dict[str, object] = {
     # mean WER 0.523 and keeps 33 at 0.159. This one gates *after* decoding, so
     # it catches what the SNR estimate cannot — a clean recording of a mumble.
     "MIN_CONFIDENCE": 0.62,
-    "INTENT_ACCEPT_THRESHOLD": 0.55,
+    # Calibrated end to end on 222 French examples (leave-one-out similarity,
+    # since every one is in the index) against 28 held-out out-of-scope
+    # sentences. The finding is that τ is a weak lever: out-of-scope safety is
+    # flat at 75% from 0.40 to 0.525 and only reaches 89% at 0.65, by which
+    # point 72 of 222 real callers are being told to rephrase.
+    #
+    # At this value just 2 of the 28 out-of-scope sentences are caught by the
+    # threshold. The rest are handled by off_topic declining (11), the medical
+    # rules (3) and the clarify floor (3) — which is where the safety actually
+    # comes from. Raising τ buys little and costs callers.
+    "INTENT_ACCEPT_THRESHOLD": 0.50,
     "INTENT_MARGIN": 0.08,
     # An utterance shorter than this never reaches the embedder. Measured: on
     # the out-of-scope set, "oui", "hmm", "euh..." and "allô ?" all match
@@ -184,26 +228,97 @@ DEFAULTS: dict[str, object] = {
     # the measured leaks were "J'ai un pacemaker, je peux faire l'IRM ?" going
     # to new_appointment.
     "MEDICAL_PROBABILITY_FLOOR": 0.25,
+    # A FAQ match this strong may answer a question the classifier called
+    # medical. Deliberately above FAQ_ACCEPT_THRESHOLD: reading the centre's
+    # own written answer is quoting policy, not practising medicine, but only
+    # when the match is unambiguous. It never overrides the absolute patterns
+    # in escalation.py — an implant question is not answerable from a document
+    # however well it scores.
+    "FAQ_OVERRIDE_THRESHOLD": 0.70,
     # Below this top probability the classifier is guessing between classes, so
-    # the agent asks instead of acting.
-    "INTENT_MIN_PROBABILITY": 0.45,
+    # the agent asks instead of acting. Cross-validated on the French corpus:
+    #
+    #   floor   misroutes caught   correct routes interrupted
+    #   0.50          35%                  12%
+    #   0.55          48%                  18%
+    #   0.60          62%                  26%
+    #
+    # 0.60 maximises caught-minus-interrupted, and is still not the choice:
+    # interrupting one correct call in four with "did you mean X or Y?" is a
+    # lot on a phone line, and a third of the "misroutes" it catches are
+    # info → medical_question, which already end in a transfer rather than a
+    # wrong action. 0.55 takes most of the benefit for two thirds of the cost.
+    "INTENT_MIN_PROBABILITY": 0.55,
     # Where train_intent_classifier.py writes the fitted model. Under models/,
     # which is gitignored: it is derived from the corpus and rebuilds in
     # seconds.
     "INTENT_MODEL_FILE": "intent_classifier.joblib",
-    # Calibrated on the 31 French rows of faq_test.csv, 24 answerable and 7
-    # unanswerable by design, against an index of 120 French phrasings (5 per
-    # entry). At 0.625 the retrieval answers 13 of the 24 correctly at 86.7%
-    # precision and refuses 100% of the unanswerable ones.
+    # --- the lexicon repair layer ---
+    "LEXICON_FILE": "lexicon.json",
+    # Domain repair is conservative: a wrong repair sends the caller to the
+    # wrong exam. A token is only rewritten when it is this close to a
+    # catalogue term AND is not a real French word.
+    "REPAIR_MIN_RATIO": 0.88,
+    # Above this Zipf frequency a token is a real French word and is left
+    # alone. "brosses" is 3.11 and stays; "écographie" is 1.20 and does not.
+    "FRENCH_WORD_MIN_ZIPF": 2.0,
+    # Safety flagging never rewrites, only flags. Two bars, because a single
+    # ratio provably cannot work here:
     #
-    # Chosen on the safe side deliberately: below the threshold the call goes
-    # to a human, and a confidently wrong answer about fasting or preparation
-    # is far worse than a transfer. 0.600 would answer one more correctly but
-    # lets one unanswerable question through, which is the wrong direction to
-    # trade on a medical line.
+    #   brosses  ~ broches   0.71   must flag
+    #   brioche  ~ broches   0.86   must not
+    #   brioches ~ broches   0.93   must not
     #
-    # Re-measure after any change to faq.csv: adding the paraphrases moved this
-    # from 0.575 to 0.625, because every score rose.
+    # The signal is inverted on the decisive pair, so any single threshold
+    # either misses "brosses" or flags pastry. What separates them is context:
+    # "des brosses en métal dans mes bras" against "une brioche et un café".
+    #
+    # So: a very close match stands alone, and a looser one needs the sentence
+    # to be about imaging.
+    "SAFETY_FLAG_MIN_RATIO": 0.94,
+    "SAFETY_FLAG_CONTEXT_RATIO": 0.70,
+    # Above this Zipf frequency a word is too ordinary to be a mangled safety
+    # term, and a fuzzy match on it is noise. "plan" (implant, 0.73) and
+    # "centre" (enceinte, 0.71) both cleared the context bar in "Le plan du
+    # centre est à l'entrée". "brosses" is 3.11 and stays flaggable, which is
+    # the line this threshold has to sit on.
+    "SAFETY_FLAG_MAX_ZIPF": 4.0,
+    # --- the LLM answer step ---
+    # Hard budget for one LLM call. Measured on this key, the same prompt to
+    # the same model took anywhere from 0.89 s to 33.4 s, so the timeout is
+    # not a safety margin — it is what keeps a turn inside the 5-second
+    # target at all. Past it, the stored FAQ answer is spoken instead, which
+    # is the centre's own text and needs no model.
+    "LLM_TIMEOUT_S": 2.0,
+    # When the LLM call fails, the stored answer is spoken only from a
+    # retrieval this confident. Calibrated for **zero wrong answers** on the
+    # fallback path, because the fallback has no relevance check behind it:
+    # the model is what catches a confident-but-wrong passage, and on a
+    # timeout the model is exactly what is missing.
+    #
+    # Pinned by one case — "Il y a un café dans le centre ?" retrieves `jeun`
+    # at 0.711 with a +0.229 margin, so the margin cannot catch it and the
+    # threshold must clear it. At 0.72 the fallback speaks 8 of the 20
+    # answers top-1 gets right and transfers the other 12.
+    "FAQ_FALLBACK_THRESHOLD": 0.72,
+    # And top-1 must lead top-2 by this much. It excludes nothing at 0.72
+    # today — every delivered answer leads by at least 0.072 — and is kept so
+    # a near-tie cannot start being spoken when the corpus changes.
+    "FAQ_FALLBACK_MARGIN": 0.05,
+    # Calibrated on the 31 French rows of faq_test.csv — 24 answerable, 7
+    # unanswerable by design — against 149 French phrasings (5.3 per entry).
+    # At 0.625: 14 of 24 answered correctly, 93.3% precision, 86% of the
+    # unanswerable refused. Top-1 on answerable is 83.3%, top-3 91.7%.
+    #
+    # 100% refusal would need 0.725, and would cut correct answers from 14 to
+    # 8. Not taken, because the one query that slips at 0.625 is "Il y a un
+    # café dans le centre ?" — the FAQ branch only ever sees `info` intents,
+    # since anything medical is diverted before retrieval, so a wrong answer
+    # here is a service failure rather than a safety one.
+    #
+    # Re-measure after any change to faq.csv. This has moved 0.575 -> 0.625
+    # across two rounds of added paraphrases, because every score rises
+    # together — the wrong ones faster than the right ones.
     "FAQ_ACCEPT_THRESHOLD": 0.625,
     "EXAM_FUZZY_THRESHOLD": 82,
     "FRUSTRATION_ESCALATE_THRESHOLD": 0.70,
@@ -366,8 +481,18 @@ def load_settings(env_file: Path | None = None) -> Settings:
         min_utterance_words=_as_int("MIN_UTTERANCE_WORDS"),
         min_utterance_letters=_as_int("MIN_UTTERANCE_LETTERS"),
         medical_probability_floor=_as_float("MEDICAL_PROBABILITY_FLOOR"),
+        faq_override_threshold=_as_float("FAQ_OVERRIDE_THRESHOLD"),
         intent_min_probability=_as_float("INTENT_MIN_PROBABILITY"),
         intent_model_file=_as_str("INTENT_MODEL_FILE"),
+        lexicon_file=_as_str("LEXICON_FILE"),
+        repair_min_ratio=_as_float("REPAIR_MIN_RATIO"),
+        french_word_min_zipf=_as_float("FRENCH_WORD_MIN_ZIPF"),
+        safety_flag_min_ratio=_as_float("SAFETY_FLAG_MIN_RATIO"),
+        safety_flag_context_ratio=_as_float("SAFETY_FLAG_CONTEXT_RATIO"),
+        safety_flag_max_zipf=_as_float("SAFETY_FLAG_MAX_ZIPF"),
+        llm_timeout_s=_as_float("LLM_TIMEOUT_S"),
+        faq_fallback_threshold=_as_float("FAQ_FALLBACK_THRESHOLD"),
+        faq_fallback_margin=_as_float("FAQ_FALLBACK_MARGIN"),
         faq_accept_threshold=_as_float("FAQ_ACCEPT_THRESHOLD"),
         exam_fuzzy_threshold=_as_int("EXAM_FUZZY_THRESHOLD"),
         frustration_escalate_threshold=_as_float("FRUSTRATION_ESCALATE_THRESHOLD"),

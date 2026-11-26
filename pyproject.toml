@@ -21,12 +21,13 @@ dependencies = [
     "torch",
     "sentence-transformers",
     "rapidfuzz",
-    "google-generativeai",
     "ollama",
     "gradio",
     "python-dotenv",
     "jiwer",
     "qdrant-client>=1.20.0",
+    "wordfreq>=3.1.1",
+    "google-genai>=3.6.1",
 ]
 
 [project.optional-dependencies]

@@ -121,7 +121,16 @@ class Settings:
     #: And how far top-1 must lead top-2 on that path.
     faq_fallback_margin: float
     faq_accept_threshold: float
+    # --- exam identification ---
+    #: Filename of the built exam gazetteer inside data/processed/.
+    exam_index_file: str
     exam_fuzzy_threshold: int
+    #: How far the leading base must lead the runner-up to be acted on.
+    exam_margin: float
+    #: Score band in which the LLM is worth asking about the top candidates.
+    exam_llm_threshold: int
+    #: How many candidates the LLM may ever see.
+    exam_llm_candidates: int
     frustration_escalate_threshold: float
     max_turns_before_escalation: int
 
@@ -320,7 +329,28 @@ DEFAULTS: dict[str, object] = {
     # across two rounds of added paraphrases, because every score rises
     # together — the wrong ones faster than the right ones.
     "FAQ_ACCEPT_THRESHOLD": 0.625,
+    # --- exam identification (WP4) ---
+    # Where build_exam_index.py writes the gazetteer. Under data/processed/,
+    # which is gitignored: it is derived from exams.csv and rebuilds in under
+    # a second.
+    "EXAM_INDEX_FILE": "exam_index.json",
+    # WP4 step 5 (scripts/calibrate_exam.py --floor 82 --margin 8).
+    # At margin 8 the floor of 82 gives 231/905 correct and 137/905 wrong
+    # resolutions on T1, and 20/22 correct with 0 wrong on T2. A floor of 85
+    # loses 13 correct T1 resolutions and avoids one wrong resolution.
     "EXAM_FUZZY_THRESHOLD": 82,
+    # Going from margin 5 to 8 at floor 82 avoids 29 wrong T1 resolutions.
+    # T2, the T3 cross-check, and the five named transfers keep their counts.
+    # Margin 10 costs a correct T2 match.
+    "EXAM_MARGIN": 8.0,
+    # Minimum top score for the step 6 fallback band [65, 82). On T3, the
+    # correct ID is resolvable in the top five in 6 of 8 eligible cases.
+    # A minimum of 70 would retain 5 of those 6 IDs. Measured without an LLM.
+    "EXAM_LLM_THRESHOLD": 65,
+    # The acceptance criteria cap the shortlist at five. At floor 65, going
+    # from three to five recovers 16 extra T1 labels in the fallback band
+    # (189 vs 173 of 312 eligible rows, through normal slot resolution).
+    "EXAM_LLM_CANDIDATES": 5,
     "FRUSTRATION_ESCALATE_THRESHOLD": 0.70,
     "MAX_TURNS_BEFORE_ESCALATION": 8,
     "TARGET_RMS_DBFS": -20.0,
@@ -494,7 +524,11 @@ def load_settings(env_file: Path | None = None) -> Settings:
         faq_fallback_threshold=_as_float("FAQ_FALLBACK_THRESHOLD"),
         faq_fallback_margin=_as_float("FAQ_FALLBACK_MARGIN"),
         faq_accept_threshold=_as_float("FAQ_ACCEPT_THRESHOLD"),
+        exam_index_file=_as_str("EXAM_INDEX_FILE"),
         exam_fuzzy_threshold=_as_int("EXAM_FUZZY_THRESHOLD"),
+        exam_margin=_as_float("EXAM_MARGIN"),
+        exam_llm_threshold=_as_int("EXAM_LLM_THRESHOLD"),
+        exam_llm_candidates=_as_int("EXAM_LLM_CANDIDATES"),
         frustration_escalate_threshold=_as_float("FRUSTRATION_ESCALATE_THRESHOLD"),
         max_turns_before_escalation=_as_int("MAX_TURNS_BEFORE_ESCALATION"),
         target_rms_dbfs=_as_float("TARGET_RMS_DBFS"),

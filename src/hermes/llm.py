@@ -321,6 +321,8 @@ def complete(
             )
         else:
             completion = complete_ollama(prompt, system, temperature, json_mode)
+        if not isinstance(completion, Completion):
+            raise LLMError("backend returned no completion")
     except LLMTimeout:
         USAGE.timed_out += 1
         raise
@@ -360,6 +362,8 @@ def complete_or(
     temperature: float = 0.2,
     timeout: float | None = None,
     key: str | None = None,
+    *,
+    json_mode: bool = False,
 ) -> tuple[str, str]:
     """Complete a prompt, or return ``fallback``. Never raises.
 
@@ -370,12 +374,14 @@ def complete_or(
     try:
         completion = complete(
             prompt, system=system, temperature=temperature, timeout=timeout,
-            key=key,
+            key=key, json_mode=json_mode,
         )
     except LLMTimeout:
         return fallback, "timeout"
     except LLMError as exc:
         return fallback, f"error:{type(exc).__name__}"
+    except OSError:
+        return fallback, "error:cache"
 
     if not completion.text.strip():
         return fallback, "empty"

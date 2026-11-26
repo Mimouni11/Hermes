@@ -16,7 +16,28 @@ the middle.
 | Ambiguity handling when the top 2 intents are close | Frustration detection (WP5) |
 | FAQ retrieval: top-3 with τ_faq | Booking (the agenda is already built) |
 | Medical questions routed to a human, always | The fixed safety script (WP7) |
-| A Gradio page to test all of it | |
+| A Gradio page to test all of it | **Dialogue state — moved to WP6** |
+
+### Why dialogue state moved
+
+The plan lists it under WP3: "dialogue state so short replies stay inside a
+booking". It is deferred to WP6 deliberately, not forgotten.
+
+A short reply is only meaningful as the answer to a question the agent asked,
+and nothing asks one yet — the booking branch returns a placeholder. Its shape
+is also WP6's to define: the plan has the agent fill a JSON form (`exam`,
+`preferred_day`, `preferred_time`, `choice`, `confirmation`), and the state has
+to mirror that form. Building it first would mean guessing a contract that does
+not exist and rewriting it when it does.
+
+**Consequence to carry forward:** the length guard rejects "oui" and "le
+deuxième" as too short. That is correct at the start of a call and wrong in the
+middle of a booking, so WP6 must give `classify()` a way to know a question is
+outstanding and read the reply in that context instead of routing it from
+scratch.
+
+Everything in WP3 is single-turn: `classify(text)` takes a string, nothing
+persists between turns, and the bench holds no session.
 
 ## Deviation from the plan: Qdrant
 

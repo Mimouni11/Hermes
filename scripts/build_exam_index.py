@@ -91,7 +91,24 @@ def build(
     confusables: list[dict[str, str]],
     langs: list[str],
 ) -> dict[str, Any]:
-    """Group the catalogue into bases and assemble the index payload."""
+    """Group the catalogue into bases and assemble the index payload.
+
+    Rejects a duplicate `id` outright. The catalogue is keyed by id into a
+    dict, so a repeated id silently overwrites the earlier row and one exam
+    disappears from the index while the build still reports 173 exams.
+    """
+    seen: dict[str, int] = {}
+    for position, row in enumerate(exams, start=1):
+        exam_id = (row.get("id") or "").strip()
+        if not exam_id:
+            raise ValueError(f"row {position} of the catalogue has no id")
+        if exam_id in seen:
+            raise ValueError(
+                f"duplicate exam id {exam_id!r} at rows {seen[exam_id]} "
+                f"and {position} — one row would overwrite the other"
+            )
+        seen[exam_id] = position
+
     members: dict[str, list[dict[str, str]]] = defaultdict(list)
     phrases: dict[str, dict[str, None]] = defaultdict(dict)
     modalities: dict[str, set[str]] = defaultdict(set)
@@ -166,8 +183,15 @@ def build(
     }
 
 
-def report(payload: dict[str, Any]) -> None:
-    """Print what was built, including the checks that matter."""
+def report(payload: dict[str, Any]) -> list[str]:
+    """Print what was built and return the integrity problems found.
+
+    The checks used to print a `!!` line and let the build succeed, which
+    defeats their purpose — the whole reason they exist is that a hole in the
+    index surfaces only as an unexplained miss, and nobody re-reads the output
+    of a command that exited 0. The caller now refuses to publish on any
+    non-empty return.
+    """
     bases = payload["bases"]
     exams = payload["exams"]
 
@@ -187,20 +211,26 @@ def report(payload: dict[str, Any]) -> None:
     print(f"    {len(payload['confusables'])} confusable pairs")
     print(f"    {len(escalate)} exams transfer: {', '.join(sorted(escalate))}")
 
+    problems: list[str] = []
+
     # Every exam must be reachable through exactly one base, or the ranking has
     # a hole that no amount of threshold tuning will show up as anything other
     # than an unexplained miss.
     placed = [i for b in bases for i in b["exam_ids"]]
-    if len(placed) != len(exams) or set(placed) != set(exams):
-        missing = set(exams) - set(placed)
-        print(f"  !! {len(missing)} exams are in no base: {sorted(missing)}")
+    missing = set(exams) - set(placed)
+    if missing:
+        problems.append(f"{len(missing)} exams are in no base: {sorted(missing)}")
     duplicated = {i for i in placed if placed.count(i) > 1}
     if duplicated:
-        print(f"  !! exams in more than one base: {sorted(duplicated)}")
+        problems.append(f"exams in more than one base: {sorted(duplicated)}")
 
     empty = [b["key"] for b in bases if not b["phrases"]]
     if empty:
-        print(f"  !! bases with no phrases: {empty}")
+        problems.append(f"bases with no phrases: {empty}")
+
+    for problem in problems:
+        print(f"  !! {problem}")
+    return problems
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -235,12 +265,23 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"indexing {', '.join(args.langs)} from {args.exams.name}")
     payload = build(exams, confusables, list(args.langs))
-    report(payload)
+    problems = report(payload)
+    if problems:
+        print(f"\nrefusing to write {args.out.name}: "
+              f"{len(problems)} integrity problem(s) above.")
+        print("The existing index is left untouched.")
+        return 1
 
+    # Written to a sibling temp file and moved into place, so a reader never
+    # sees half a document. `load_index()` parses JSON, and a truncated file
+    # raises JSONDecodeError, which the Gradio handler does not catch — a
+    # rebuild while the bench is open would have surfaced as a stack trace.
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(
+    staging = args.out.with_suffix(args.out.suffix + ".partial")
+    staging.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+    staging.replace(args.out)
     size_kb = args.out.stat().st_size / 1024
     print(f"\nwritten: {args.out}  ({size_kb:.0f} KB)")
     return 0

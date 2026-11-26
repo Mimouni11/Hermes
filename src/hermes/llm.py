@@ -308,7 +308,12 @@ def complete(
     USAGE.calls += 1
 
     if use_cache:
-        cached = cache_get(key)
+        # An unreadable cache means "no cached answer", not "no answer".
+        try:
+            cached = cache_get(key)
+        except OSError as exc:
+            print(f"  ! LLM cache read failed, calling the model: {exc}")
+            cached = None
         if cached is not None:
             USAGE.served += 1
             USAGE.from_cache += 1
@@ -320,7 +325,15 @@ def complete(
                 prompt, system, temperature, json_mode, timeout
             )
         else:
-            completion = complete_ollama(prompt, system, temperature, json_mode)
+            # Time-boxed like the Gemini path. `complete_ollama` has no budget
+            # of its own, so an unresponsive local server would hang the turn
+            # forever instead of falling back — and the caller is holding a
+            # phone line.
+            budget = settings.llm_timeout_s if timeout is None else timeout
+            completion = run_within(
+                budget,
+                lambda: complete_ollama(prompt, system, temperature, json_mode),
+            )
         if not isinstance(completion, Completion):
             raise LLMError("backend returned no completion")
     except LLMTimeout:
@@ -333,7 +346,15 @@ def complete(
     USAGE.served += 1
     USAGE.latencies.append(completion.latency_s)
     if use_cache:
-        cache_put(key, completion)
+        # A failed cache write must not discard a reply the model already
+        # gave. It used to: the OSError escaped `complete()`, `complete_or()`
+        # turned it into the fallback, and the exam bot threw away a valid
+        # choice to ask the caller a question instead. The cache is an
+        # optimisation; the completion is the product.
+        try:
+            cache_put(key, completion)
+        except OSError as exc:
+            print(f"  ! LLM cache write failed, continuing: {exc}")
     return completion
 
 

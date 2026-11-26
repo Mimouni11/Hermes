@@ -546,6 +546,27 @@ returning in 0.89 s once and 33.4 s another time. **The no-LLM path has to be
 good on its own.** The LLM is a recovery layer, and the gazetteer-alone column
 in the accuracy table is the one that matters for the demo.
 
+### The budget is now per path, not per project
+
+`LLM_TIMEOUT_S` was serving both callers, and the two are not comparable:
+
+| path | fallback on timeout | budget |
+|---|---|---|
+| FAQ answer | the centre's stored answer — a publishable reply | `LLM_TIMEOUT_FAQ_S` 2.0 s |
+| exam selection | a clarifying question — costs a turn, cannot be wrong | `LLM_TIMEOUT_EXAM_S` 3.5 s |
+
+The FAQ budget stays where WP3 measured it, because waiting longer there buys
+only better phrasing over an answer that is already correct. The exam path has
+the opposite shape: a timeout spends a turn, so waiting is cheaper, and the
+thing it is reaching for — "estomac" meaning abdominale — is unavailable any
+other way.
+
+Measured need: three live calls on this key returned in **3.59 s, 2.12 s and
+0.90 s**, so a 2 s budget misses the majority of successful responses. The
+first evaluation timed out on 5 of 6 T3 fallback calls and 7 of 9 on T4. 3.5 s
+clears two of the three observed latencies and still leaves room inside the
+5-second-per-turn target for the ~1 s the rest of the turn costs.
+
 Budget note (Rule 4, one LLM call per turn): WP3 spends the turn's call on the
 FAQ answer. A booking turn does not call that, so the exam fallback is that
 turn's one call. WP6 merges both into a single prompt and schema — recorded in
@@ -554,9 +575,54 @@ turn's one call. WP6 merges both into a single prompt and schema — recorded in
 ## Step 7 — matcher evaluation
 
 Run `uv run python scripts/eval_exam.py` from the project root, with
-`reports/stt_results.csv` and the generated lexicon available. The script
-runs both modes on the same inputs and writes a summary and per-case CSV.
-Use `--no-llm` for an offline run with separate output filenames.
+`reports/stt_results.csv` and the generated lexicon available. **It calls no
+model**, and writes [exam_eval.md](../reports/exam_eval.md) plus a per-case
+CSV. The LLM is measured by `scripts/eval_exam_llm.py` into a separate report.
+
+### Why the two are separate runs
+
+The first version ran every case twice, with and without the LLM, and put both
+columns in one accuracy table. The LLM column turned out to be measuring the
+free-tier quota: **254 of 292 T1 invocations returned `error:LLMError`** once
+the burst exhausted it, 41 more timed out, and only **12 of 307 invocations
+across the whole run got a live reply**. The entire "LLM enabled" gain on T3 —
+23/35 to 24/35 — was one successful call.
+
+The key was never the problem. Three calls made afterwards all succeeded, in
+3.59 s, 2.12 s and 0.90 s. A 292-call burst on a free tier is the problem.
+
+So the table could not answer either question it appeared to answer, and the
+two questions pull in opposite directions — one wants every obstacle to an
+answer removed, the other wants them all kept. They are now two runs:
+
+| run | question | conditions |
+|---|---|---|
+| quality | can it pick the right exam when it answers? | throttled 2 s, 3 attempts with 4/12 s backoff, 30 s budget, cached |
+| availability | does it answer inside the production budget? | one attempt, `LLM_TIMEOUT_EXAM_S`, cache cleared per call |
+
+The quality run asks only about cases the fallback can act on: the gazetteer
+resolved nothing *and* the top score is in the band. Rows the gazetteer
+already answers cannot be improved by asking, and including them would dilute
+the measurement with calls production never makes.
+
+### The T1 holdout was deleting the answer
+
+`hold_out` drops a base left with no phrases, and for a lateral pair **every**
+French keyword collapses to one phrase — all ten wordings of `EX022`/`EX023`
+reduce to `irm epaule` — so holding that phrase out removed the base and made
+the exam unfindable. 64 of 905 T1 samples (7.1 %) were unanswerable by
+construction. `survives_holdout` now excludes them.
+
+**The honest outcome: it did not change a threshold.** The denominator moved
+905 → 841 and the clarify count 537 → 473, while the correct and wrong counts
+stayed at 231 and 137 — every excluded sample had been scored as *withheld*,
+not as a wrong resolution. Re-running the full sweep on the corrected sample
+selected the same floor of 82 and the same margin of 8, and the "margin 5 → 8
+avoids 29 wrong resolutions" figure held exactly (166 → 137).
+
+So the bug inflated the clarify rate and the denominator, not the error rate.
+Worth fixing and worth writing down, but it was not distorting the
+calibration.
 
 T4 starts with the 64 T2 and T3 requests. It replays the longest applicable
 measured substitution per request, using Whisper small/raw transcripts that
@@ -565,18 +631,148 @@ unchanged rows as controls. The report also measures the changed rows on
 their own. This is a text simulation with limited coverage of recognition
 errors. The replay changes 14 of the 64 inputs in the current corpus.
 
-The [full evaluation](../reports/exam_eval.md) records both modes on all four
-tiers. On T3 the fallback raised correct IDs from 23/35 to 24/35. On T4 it
-raised them from 37/57 to 38/57, including one additional correct match among
-the 14 changed inputs. Both modes still resolved two requests that called for
-clarification. The T3 keyword-disjoint subset improved from 18/30 to 19/30.
+The [gazetteer evaluation](../reports/exam_eval.md) records all four tiers with
+no model involved: T2 20/22, T3 23/35, T4 37/57, and the T3 keyword-disjoint
+subset 18/30 — **zero wrong exams on every one of them.**
 
-Only 12 of 307 fallback invocations received live replies. There were 41
-timeouts and 254 backend errors, all of the latter during T1. These results
-measure the fallback's end-to-end effect under the service conditions of
-this run. They provide limited evidence about candidate selection when
-Gemini answers. The detailed cases are in the generated
-`reports/exam_eval.csv`.
+### What the LLM is actually worth
+
+Measured separately in [exam_llm_eval.md](../reports/exam_llm_eval.md), on the
+44 band-eligible cases and nothing else.
+
+| | |
+|---|---:|
+| fallback cases asked about | 44 |
+| model replied | 37 |
+| **recovered the right exam** | **32** |
+| **gave a wrong exam** | **0** |
+| recovery rate among replies | **86 %** |
+
+Per tier: T1 19/25, T3 5/8, T4 8/11. So the shortlist-plus-model design works
+— when the model answers it picks correctly 86 % of the time and has not once
+picked a wrong exam.
+
+**This is a different conclusion from the first run, and the first run was
+wrong about it.** That run reported a gain of one row on T3 and 12 live replies
+out of 307 invocations, which read as "the LLM barely helps". Two separate
+measurement faults produced that:
+
+- 292 calls fired with no spacing exhausted the free-tier quota, and 254 came
+  back `error:LLMError`. Throttled to one call every 2 s, the same key returned
+  **50 of 54 served, 2 timed out, 2 failed.**
+- The eligibility filter used only the band's *lower* bound, so 31 of 67
+  "fallback cases" were missing-side and close-pair clarifications that score
+  100 and are answered with a question by design. They were never invoked, and
+  they sat in the denominator.
+
+### The 3.5 s budget is well placed, and I had claimed otherwise
+
+| | |
+|---|---:|
+| cases sent to the model | 15 |
+| answered inside 3.5 s | 13 |
+| timed out | 2 (**13 %**) |
+| p50 / p90, all attempts | 1.79 s / 3.52 s |
+| p50 / p90, replies that landed | 1.62 s / 3.01 s |
+
+An earlier note in this document's history claimed the model's latency "sits
+right on the budget" with 6 of 10 attempts timing out, and suggested 4.5 s
+might be needed. That reading came from a sample drawn by the broken filter,
+taken immediately after a 67-call quality run had already throttled the key.
+On a clean sample the p50 reply is **1.62 s** and the timeout rate is 13 %.
+3.5 s stays.
+
+Two pairs of percentiles are reported because they answer different questions:
+all-attempts latency is what a caller waits, with a timed-out call contributing
+the whole budget, while the replies-only pair is the model's real speed. Once a
+timeout rate passes half, the all-attempts p50 simply *is* the budget and says
+nothing about the model — which is exactly how the first run misled.
+
+### What this does not license
+
+The two runs must not be multiplied into one accuracy figure. The quality run
+removes every obstacle to an answer — 30 s budget, three attempts, caching —
+and the availability run keeps them. **The number that ships is the
+gazetteer's**, because that is what a caller gets whenever the model is late,
+and it is the one with zero wrong exams.
+
+Taking the recovery rate at the production timeout, T3 would reach roughly
+27/35 and T4 roughly 44/57 — better than the gazetteer alone and still short of
+the brief's 85 % target on hand-written caller language. Stated rather than
+rounded up: the target is met on T2 (20/22, 91 %) and not on T3 or T4.
+
+## Per-modality results, and where the weakness actually is
+
+T2, T3 and T4 together, keyed on the expected exam's modality. Per-language is
+not reported: the scope is French only, so every row sits in one bucket.
+
+| Modality | Labelled | Correct | Wrong | Asked |
+|---|---:|---:|---:|---:|
+| IRM | 28 | 23 | 0 | 5 |
+| échographie | 28 | 12 | 0 | 16 |
+| radiographie | 24 | 18 | 0 | 6 |
+| scanner | 16 | 15 | 0 | 1 |
+| mammographie | 8 | 2 | 0 | 6 |
+| dentaire | 6 | 6 | 0 | 0 |
+| densitométrie | 4 | 4 | 0 | 0 |
+
+The aggregate hides a very uneven picture. Scanner, dentaire and densitométrie
+are effectively solved (25 of 26). **Échographie is 12 of 28, and mammographie
+2 of 8** — and both fail by *asking*, never by booking the wrong exam.
+
+This lines up exactly with the vocabulary-gap table above. Échographie is the
+modality whose catalogue names are furthest from how patients speak — the
+caller says estomac, bas-ventre, "la glande au cou", "voir le bébé", and the
+catalogue says abdominale, pelvienne sus-pubienne, thyroïdienne, obstétricale.
+Mammographie is the same problem with "contrôle annuel" against dépistage and
+"bilan sénologique".
+
+So the residual error is concentrated, named, and not a ranking defect: it is
+six or seven anatomical synonyms. That is why the LLM recovers 86 % of the
+band cases — mapping estomac to abdominale is exactly what it is for.
+
+## Fixes from the code review
+
+A review of the merged WP4 raised 17 points. Nine were acted on, two were
+already satisfied, and six were declined; the declines are recorded here
+because "we considered it" is worth less than "we considered it and why".
+
+**Three produced a wrong exam, and each now has a regression test.**
+
+| | Measured failure |
+|---|---|
+| negated injection | "Une IRM du cerveau, pas injectée" → `EX002 IRM cérébrale **avec** injection`, with the injected exam's bilan rénal and metformin warnings. Only `sans` was handled; `pas` and `non` are how people say it. |
+| `droit` as entitlement | "J'ai le droit de passer une IRM du genou ?" → `EX034 IRM du genou **droit**`. A silent booking of the right knee from a question about permission — and the word was stripped as a slot, so the trace did not show where the side came from. |
+| falsy empty index | `ExamIndex.__len__` makes an empty index falsy, so `index or get_index()` swapped an explicitly-passed empty catalogue for the real one and answered with five confident candidates. Every call site now tests `index is None`. |
+
+**Six were cheap and defensive.** A successful model reply was being discarded
+when the cache *write* failed (`OSError` escaped `complete()` and became the
+fallback, so the exam bot threw away a valid choice to ask a question); the
+Ollama path had no wall-clock budget, so an unresponsive local server would
+hang a turn forever; `build_exam_index.py` printed `!!` integrity warnings and
+still exited 0, which defeats checks that exist precisely because a hole shows
+up only as an unexplained miss — it now refuses to publish and leaves the old
+index in place; the index is written to a sibling file and moved into place, so
+a rebuild cannot expose half a document to `load_index()`; a duplicate exam id
+is now rejected rather than silently overwriting a row; and `docs/README.md`
+and `docs/configuration.md` were both stale — the README never mentioned *any*
+index builder, so a fresh clone could not run the intent gate either.
+
+**Declined, with reasons.** Indexing all three keyword columns and adding
+Darija/Arabizi tests re-opens a settled scope decision, and the measured reason
+is in *Language scope* above. The unauthenticated-Gradio-quota concern does not
+apply to a local bench launched with `inbrowser=True` and no `share=True`.
+Unbounded executor threads from timed-out calls are real but irrelevant at one
+caller per turn — worth revisiting if WP6 ever runs concurrent sessions.
+
+**Sending the caller's utterance to Gemini** deserves a straight answer rather
+than a dismissal. The concern is legitimate and it is not new: the FAQ path has
+done it since WP3, and the model cannot choose among five candidates without
+the words. Rule 3 governs data on disk and real caller data in fixtures, both
+of which hold. The live-call question — what may leave the building, and what
+the transcript log keeps — belongs with WP7's anonymised logging, and is noted
+there rather than solved by redacting a prompt on a fictional centre's test
+data.
 
 ## Clarify, not guess
 
@@ -686,9 +882,14 @@ lexicon reads was touched: `build_lexicon.py` takes `modality`, `region_fr` and
 - [x] the LLM sees at most 5 candidates and the bot rejects ids outside that shortlist
 - [x] all five `escalate` exams transfer, checked after the match resolves
 - [x] calibration for the four settings recorded in `config.py`
-- [x] accuracy table: gazetteer alone vs gazetteer + LLM, on T1 / T2 / T3 / T4
+- [x] accuracy table: the gazetteer on T1 / T2 / T3 / T4 in
+      [exam_eval.md](../reports/exam_eval.md), and gazetteer vs gazetteer+LLM
+      on the fallback-eligible rows in
+      [exam_llm_eval.md](../reports/exam_llm_eval.md). Split because one table
+      containing a rate-limited API answered neither question.
 - [x] T3 reported over all 35 `matched` rows and the 30 with no keyword overlap
 - [x] clarify rate and **wrong-exam rate** reported
-- [x] LLM usage rate, latency and timeout rate reported
+- [x] LLM usage rate, p50/p90 latency and timeout rate reported, under the
+      production budget rather than under a quota-exhausted burst
 - [x] tests for exact name, typo, abbreviation, missing side, confusable pair,
       unknown exam, escalate exam

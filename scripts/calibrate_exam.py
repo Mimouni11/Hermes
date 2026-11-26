@@ -28,7 +28,13 @@ class Observation:
 
 
 def hold_out(index: exam_bot.ExamIndex, text: str) -> exam_bot.ExamIndex:
-    """Remove the query from every base, including duplicates across slot variants."""
+    """Remove the query from every base, including duplicates across slot variants.
+
+    A base left with no phrases is dropped, because a base with nothing to
+    match on cannot be ranked. That makes the query unanswerable, which is why
+    callers must filter such samples out with :func:`survives_holdout` rather
+    than score them.
+    """
     phrases = {exam_bot.match_phrase(text), exam_bot.prepare(text).query}
     bases = []
     for base in index.bases:
@@ -39,6 +45,28 @@ def hold_out(index: exam_bot.ExamIndex, text: str) -> exam_bot.ExamIndex:
             aliases = frozenset().union(*(exam_bot.modalities_in(phrase) for phrase in retained))
             bases.append(replace(base, phrases=retained, modalities=aliases | {base.modality}))
     return replace(index, bases=tuple(bases))
+
+
+def survives_holdout(
+    index: exam_bot.ExamIndex, text: str, expected: frozenset[str],
+) -> bool:
+    """Whether the expected exam is still reachable once the query is removed.
+
+    Without this the T1 sweep asks the matcher to find an exam it has just
+    deleted, and scores the inevitable mismatch as a **wrong** resolution.
+
+    The cases this excludes are not random. After side-stripping and filler
+    removal, all ten French keywords of a lateral pair collapse to one phrase —
+    every wording of `EX022`/`EX023` reduces to "irm epaule" — so holding that
+    phrase out empties the base. The effect therefore falls hardest on exactly
+    the bases the base-collapsing design works best on, and leaving it in
+    biases the margin sweep towards punishing them.
+    """
+    held = {base.key for base in hold_out(index, text).bases}
+    return any(
+        (base := index.base_for(exam_id)) is not None and base.key in held
+        for exam_id in expected
+    )
 
 
 def observe(case: Case, index: exam_bot.ExamIndex) -> Observation:
@@ -91,12 +119,18 @@ def main() -> None:
         path.write_text(json.dumps(payload), encoding="utf-8")
         index = exam_bot.load_index(path)
 
-    t1_cases = [
+    t1_all = [
         Case(text.strip(), frozenset([row["id"]]))
         for row in exams
         for text in dict.fromkeys(row["keywords_fr"].split("|"))
         if text.strip()
     ]
+    t1_cases = [case for case in t1_all if survives_holdout(index, case.text, case.expected)]
+    excluded = len(t1_all) - len(t1_cases)
+    print(
+        f"T1: {len(t1_cases)} answerable of {len(t1_all)} "
+        f"({excluded} excluded — holding the query out would delete its only base phrase)"
+    )
     t2_cases = [
         Case(row["text"], frozenset([row["exam_id"]]))
         for row in read_csv(raw / "intents.csv")

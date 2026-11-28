@@ -50,7 +50,7 @@ service rather than as a last resort.
 |---|---|
 | A text classifier over sentence embeddings | Wiring into `escalation.check()` (WP7) |
 | Grouped cross-validation and per-kind error analysis | Dialogue state and turn counting (WP6) |
-| Calibrating `FRUSTRATION_ESCALATE_THRESHOLD` | `MAX_TURNS_BEFORE_ESCALATION` (needs WP6's state) |
+| Calibrating the soft and hard thresholds | `MAX_TURNS_BEFORE_ESCALATION` (needs WP6's state) |
 | A Gradio panel showing the score | The handover wording (WP7's fixed script) |
 | | Darija and Arabizi |
 
@@ -337,12 +337,12 @@ because both errors are actions.**
 My reading, offered as a recommendation and not acted on: **favour recall.** A
 needless transfer costs one bounded human minute, while a missed frustration
 compounds over every remaining turn and is what a marker — or a real caller —
-would notice. That argues for a threshold below 0.5 rather than the 0.70
-currently sitting in `config.py` as an uncalibrated placeholder.
+would notice.
 
-But that is a service-policy judgement about the centre's staffing, not a
-measurement, and `FRUSTRATION_ESCALATE_THRESHOLD` is where it gets encoded. It
-needs an explicit answer before step 3.
+**Settled, and the answer was neither.** The two-level design dissolves the
+question: `soft` is recall-oriented at 0.62 and costs an apology, `hard` is
+precision-oriented at 0.98 and costs a transfer. Each error is priced against
+its own action instead of one threshold trying to serve both.
 
 ### `correction` is the threshold's real constraint
 
@@ -377,9 +377,9 @@ places in the report** and no claim resting on a two-row difference. Grouped
 2. `src/hermes/frustration.py` — `load_dataset`, text-only `featurise`, cached
    `load_model`, `predict` returning `FrustrationScore`. Degrades to a neutral
    score when the weights are missing, as the stub's docstring promises.
-3. Calibrate `FRUSTRATION_ESCALATE_THRESHOLD` on the grouped cross-validated
-   probabilities, under whichever policy Decision 5 settles on, and record the
-   run in `config.py` beside the value.
+3. Calibrate `FRUSTRATION_SOFT_THRESHOLD` and `FRUSTRATION_HARD_THRESHOLD` on
+   the grouped cross-validated probabilities, and record each run in
+   `config.py` beside the value.
 4. The `words`/`exclamations` ablation. Ship them only if they beat the
    embedding alone on the grouped split.
 5. Tests: score is a probability; a calm sentence scores low and an angry one
@@ -405,9 +405,6 @@ anything consumes the score.
 3. **Darija.** 296 of 476 rows are `tn`, `tn_latn` or `mix`. Excluded from the
    reported numbers, consistent with WP4 and with the scope decision. The rows
    stay in the file.
-4. **`FRUSTRATION_ESCALATE_THRESHOLD`** is superseded by the soft/hard pair and
-   nothing reads it. Marked as such in `config.py`; delete it and its `.env`
-   line whenever convenient.
 
 ## Reproducing it
 

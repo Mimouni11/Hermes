@@ -141,8 +141,6 @@ class Settings:
     frustration_soft_threshold: float
     #: Probability above which the call is handed to a human.
     frustration_hard_threshold: float
-    #: Superseded by the two above. Nothing reads it.
-    frustration_escalate_threshold: float
     max_turns_before_escalation: int
 
     # --- the audio front end ---
@@ -447,11 +445,6 @@ DEFAULTS: dict[str, object] = {
     # paths to a human: two consecutive soft hits transfer, and so does the
     # WP6/WP7 repeat counter. A row missed here is a delayed handover.
     "FRUSTRATION_HARD_THRESHOLD": 0.98,
-    # Superseded by the pair above, which separates "apologise" from
-    # "transfer". Never calibrated, and nothing reads it. Kept only so an
-    # existing .env line setting it does not look meaningful; delete both
-    # when convenient.
-    "FRUSTRATION_ESCALATE_THRESHOLD": 0.70,
     "MAX_TURNS_BEFORE_ESCALATION": 8,
     "TARGET_RMS_DBFS": -20.0,
     "PEAK_CEILING": 0.99,
@@ -634,7 +627,6 @@ def load_settings(env_file: Path | None = None) -> Settings:
         frustration_model_file=_as_str("FRUSTRATION_MODEL_FILE"),
         frustration_soft_threshold=_as_float("FRUSTRATION_SOFT_THRESHOLD"),
         frustration_hard_threshold=_as_float("FRUSTRATION_HARD_THRESHOLD"),
-        frustration_escalate_threshold=_as_float("FRUSTRATION_ESCALATE_THRESHOLD"),
         max_turns_before_escalation=_as_int("MAX_TURNS_BEFORE_ESCALATION"),
         target_rms_dbfs=_as_float("TARGET_RMS_DBFS"),
         peak_ceiling=_as_float("PEAK_CEILING"),

@@ -87,7 +87,8 @@ apart is worse than either alone.
 | `LLM_TIMEOUT_FAQ_S` | `2.0` | fallback is the stored answer, so waiting buys only phrasing |
 | `LLM_TIMEOUT_EXAM_S` | `3.5` | p50 reply 1.62 s, 13 % timeout rate |
 | `INTENT_MARGIN` | `0.08` | **uncalibrated** — superseded by the probability floor |
-| `FRUSTRATION_ESCALATE_THRESHOLD` | `0.70` | **uncalibrated** — WP5 |
+| `FRUSTRATION_SOFT_THRESHOLD` | `0.62` | highest τ reaching recall ≥ 0.90 — [WP5](WP5.md) |
+| `FRUSTRATION_HARD_THRESHOLD` | `0.98` | with the hybrid rule: `prob ≥ τ OR (lexicon hit AND prob ≥ soft)` |
 | `MAX_TURNS_BEFORE_ESCALATION` | `8` | a policy choice, not a measurement |
 
 The exam matcher is implemented: `exam_bot.identify()` ranks 132 bases from a

@@ -135,7 +135,12 @@ class Settings:
     exam_llm_threshold: int
     #: How many candidates the LLM may ever see.
     exam_llm_candidates: int
-    frustration_escalate_threshold: float
+    #: Filename of the trained frustration ensemble inside models/.
+    frustration_model_file: str
+    #: Probability above which the agent apologises and simplifies.
+    frustration_soft_threshold: float
+    #: Probability above which the call is handed to a human.
+    frustration_hard_threshold: float
     max_turns_before_escalation: int
 
     # --- the audio front end ---
@@ -382,7 +387,64 @@ DEFAULTS: dict[str, object] = {
     # from three to five recovers 16 extra T1 labels in the fallback band
     # (189 vs 173 of 312 eligible rows, through normal slot resolution).
     "EXAM_LLM_CANDIDATES": 5,
-    "FRUSTRATION_ESCALATE_THRESHOLD": 0.70,
+    # --- frustration detection (WP5) ---
+    # Where train_frustration.py writes the ensemble. Under models/, which is
+    # gitignored: it is derived from the corpus and retrains in seconds. The
+    # file records the embedder it was trained with, and loading refuses on a
+    # mismatch rather than scoring against the wrong vector space.
+    "FRUSTRATION_MODEL_FILE": "frustration.pt",
+    # Two levels, two actions. Calibrated on the shipped model's out-of-fold
+    # probabilities over the 180 French rows — 5 seeds x 5 grouped folds, so
+    # every row was scored by a model that had not seen it. See docs/WP5.md.
+    #
+    # SOFT: apologise and simplify. Chosen as the *highest* threshold still
+    # reaching recall >= 0.90, so it meets the target with the fewest false
+    # alarms; every lower threshold also meets it, by flagging more.
+    # At 0.62: recall 0.91 +/- 0.01, precision 0.94. Costs 3.4 of 11
+    # `correction` rows, 0.4 of 54 `neutral`, 1.0 of 11 `positive`. A soft hit
+    # costs one apologetic sentence, so it is allowed to be wrong.
+    "FRUSTRATION_SOFT_THRESHOLD": 0.62,
+    # HARD: transfer to a human. The rule is **not** a bare threshold:
+    #
+    #     hard  if  prob >= 0.98  OR  (lexicon hit AND prob >= soft)
+    #
+    # Chosen as the lowest value where, averaged over 5 seeds, `correction`
+    # is flagged at most once of 11, `positive` at most 0.2 of 11, and
+    # `neutral` exactly 0 of 54.
+    #
+    # At 0.98 with that rule: recall 0.78, precision 0.98 — against recall
+    # 0.71 for the probability alone at the same threshold and the same false
+    # alarms. Six more frustrated callers caught for nothing, which is the
+    # whole argument for the second arm.
+    #
+    # The second arm only became affordable once the lexicon's repetition
+    # family was restricted to the first person. While it also matched the
+    # bare infinitive, it wrongly flagged "Vous pouvez répéter s'il vous
+    # plaît ?" — a `correction` — and the hard threshold was already spending
+    # its entire correction budget, so no value of tau satisfied the bar.
+    #
+    # Two rows force the threshold this high, and both are model error on
+    # correctly labelled text rather than a data problem:
+    #
+    #   0.975  [correction]  "Non non, c'est bon, c'est juste une erreur
+    #                         de ma part."   (shares its opener with the
+    #                         frustrated "Non non non, pas ça du tout !")
+    #   0.943  [positive]    "Oui ça marche !"
+    #
+    # The second looked like general negation blindness and is not: on fresh
+    # polarity pairs the model separates "ça marche" 0.024 from "ça ne marche
+    # pas" 0.700, and "c'est bon comme ça" 0.014 from "ce n'est pas bon du
+    # tout" 0.912. It is these two rows, not the phenomenon.
+    #
+    # A looser bar — calm kinds at most twice — reaches 0.86 with recall 0.85
+    # and F1 0.90, at 1.8 corrections and 1.0 positives. Not taken: the hard
+    # level transfers the call, and the hybrid buys most of that recall back
+    # without spending the budget.
+    #
+    # Recall 0.78 is also not the whole handover story. This is one of three
+    # paths to a human: two consecutive soft hits transfer, and so does the
+    # WP6/WP7 repeat counter. A row missed here is a delayed handover.
+    "FRUSTRATION_HARD_THRESHOLD": 0.98,
     "MAX_TURNS_BEFORE_ESCALATION": 8,
     "TARGET_RMS_DBFS": -20.0,
     "PEAK_CEILING": 0.99,
@@ -562,7 +624,9 @@ def load_settings(env_file: Path | None = None) -> Settings:
         exam_margin=_as_float("EXAM_MARGIN"),
         exam_llm_threshold=_as_int("EXAM_LLM_THRESHOLD"),
         exam_llm_candidates=_as_int("EXAM_LLM_CANDIDATES"),
-        frustration_escalate_threshold=_as_float("FRUSTRATION_ESCALATE_THRESHOLD"),
+        frustration_model_file=_as_str("FRUSTRATION_MODEL_FILE"),
+        frustration_soft_threshold=_as_float("FRUSTRATION_SOFT_THRESHOLD"),
+        frustration_hard_threshold=_as_float("FRUSTRATION_HARD_THRESHOLD"),
         max_turns_before_escalation=_as_int("MAX_TURNS_BEFORE_ESCALATION"),
         target_rms_dbfs=_as_float("TARGET_RMS_DBFS"),
         peak_ceiling=_as_float("PEAK_CEILING"),

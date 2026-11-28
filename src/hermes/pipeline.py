@@ -7,7 +7,8 @@ The order is fixed, and each stage can short-circuit the ones after it:
 3. :mod:`hermes.escalation`     emergency words? read the script, transfer, stop
 4. :mod:`hermes.intent_gate`    route, or refuse as out of scope
 5. :mod:`hermes.faq_rag` / :mod:`hermes.exam_bot`  gather grounding for the intent
-6. :mod:`hermes.frustration`    score the caller's patience
+6. :mod:`hermes.frustration`    score the caller's patience — recorded only,
+   never acted on here; WP6's orchestrator owns what a level means
 7. :mod:`hermes.agent`          one LLM call, JSON decision
 8. :mod:`hermes.escalation`     re-check the rules against the decision
 9. :mod:`hermes.agenda`         carry out a booking, reschedule or cancellation
@@ -51,6 +52,23 @@ class TurnResult:
     end_call: bool
     timings_ms: dict[str, float] = field(default_factory=dict)
     error: str | None = None
+
+
+def score_frustration(text: str, lang: str = "fr") -> FrustrationScore:
+    """Stage 6: score the caller's patience. **Observation only.**
+
+    The result goes into `TurnResult.frustration` and the turn log, and
+    nothing in this module branches on it. Deciding what a `soft` or `hard`
+    level *does* — apologise and simplify, hand over, or hand over after two
+    consecutive soft hits — belongs to the WP6 orchestrator, which is the only
+    place with the dialogue state those rules need.
+
+    Kept deliberately thin so that when `run_turn` is implemented it has one
+    call to make and no policy to re-derive.
+    """
+    from hermes import frustration
+
+    return frustration.detect(text, lang=lang)
 
 
 def start_call(caller_id: str | None = None) -> DialogueState:
@@ -102,3 +120,4 @@ def end_call(state: DialogueState, outcome: str) -> None:
 def warm_up() -> dict[str, Any]:
     """Preload the models and indexes so the first real turn is not slow."""
     ...
+

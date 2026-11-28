@@ -59,7 +59,9 @@ def test_selection_cache_and_transfer(monkeypatch, fallback_index):
     def complete(prompt, system, temperature, json_mode, timeout):
         requests.append(json.loads(prompt))
         assert json_mode
-        assert timeout == config.get_settings().llm_timeout_s
+        # The exam path has its own budget: its fallback is a question, not a
+        # publishable answer, so it is allowed to wait longer than the FAQ.
+        assert timeout == config.get_settings().llm_timeout_exam_s
         return completion('{"exam_id":"EX002","reason":"ok"}')
 
     monkeypatch.setattr(llm, "complete_gemini", complete)

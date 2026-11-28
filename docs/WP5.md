@@ -411,7 +411,7 @@ anything consumes the score.
 ```powershell
 uv run python scripts/frustration/train_frustration.py     # models/frustration.pt
 uv run python scripts/frustration/eval_frustration.py      # reports/frustration_eval.md
-uv run python -m pytest tests/test_frustration.py -q
+uv run python -m pytest tests/understand/test_frustration.py -q
 ```
 
 The evaluation defaults to running the EmoWOZ arms, which needs

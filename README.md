@@ -89,7 +89,7 @@ uv run pytest
 | `notebooks/` | training and evaluation |
 | `models/` | trained weights (gitignored) |
 | `reports/figures/` | charts for the report |
-| `tests/` | pytest suite |
+| `tests/` | pytest suite grouped by Hermes subpackage |
 
 ## Privacy
 

@@ -118,7 +118,7 @@ optional, but a single listen to the confirmation line is not.
 
 ## Tests
 
-25 tests in `tests/test_tts.py`. Most need no voice and no network: the number
+25 tests in `tests/speak/test_tts.py`. Most need no voice and no network: the number
 speller, the time and date expansion, the reference-code rule, the abbreviation
 pass and the cache key. The four synthesis tests skip themselves when no Piper
 voice is installed, so the suite still passes on a fresh clone.

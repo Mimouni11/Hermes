@@ -298,7 +298,7 @@ Not a demo page — a bench for seeing every stage work.
 | `scripts/faq/build_faq_index.py` | stub → implement as the FAQ indexer |
 | `scripts/intent/calibrate_intent.py` | new — τ and the margin, like `calibrate_gate.py` |
 | `app/gradio_app.py` | stub → the testing app |
-| `tests/test_intent_gate.py`, `tests/test_faq_rag.py` | stubs → implement |
+| `tests/understand/test_intent_gate.py`, `tests/understand/test_faq_rag.py` | stubs → implement |
 | `docker-compose.yml` | new — the Qdrant service |
 
 ## Config additions

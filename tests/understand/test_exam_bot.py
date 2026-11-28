@@ -180,7 +180,7 @@ def test_flagged_exam_transfers_after_resolution(catalogue):
 
 
 def test_gazetteer_covers_every_project_exam(tmp_path):
-    raw = Path(__file__).resolve().parents[1] / 'data' / 'raw'
+    raw = Path(__file__).resolve().parents[2] / 'data' / 'raw'
     if not (raw / 'exams.csv').is_file() or not (raw / 'confusables.csv').is_file():
         pytest.skip('local WP4 catalogue CSVs unavailable')
     rows = read_csv(raw / 'exams.csv')

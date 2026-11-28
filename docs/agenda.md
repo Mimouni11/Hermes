@@ -90,7 +90,7 @@ when the exam begins — and it is pinned by a test.
 
 ## Tests
 
-59 tests in `tests/test_agenda.py`, against a temporary database and catalogue
+59 tests in `tests/book/test_agenda.py`, against a temporary database and catalogue
 built per test, so nothing touches `data/`. The fixture lays out genuinely
 contiguous blocks, because an exam longer than one slot can only be placed if
 the slots actually abut — the first version of that fixture had gaps, and no

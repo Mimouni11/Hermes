@@ -167,7 +167,7 @@ def test_real_noisy_clip_scores_below_its_clean_source() -> None:
     5 dB copy — checked against `data/audio` rather than a synthetic fixture.
     Skipped when the clips have not been generated.
     """
-    root = Path(__file__).resolve().parents[1]
+    root = Path(__file__).resolve().parents[2]
     clean_path = root / "data" / "audio" / "tts" / "fr-003.wav"
     noisy_path = root / "data" / "audio" / "noisy" / "fr-003-snr5.wav"
     if not (clean_path.exists() and noisy_path.exists()):

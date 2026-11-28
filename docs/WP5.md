@@ -1,8 +1,44 @@
 # WP5 — Frustration detection
 
-**Status:** planned, not started.
-**Done when:** `predict(text)` returns a calibrated frustration score for one
-caller turn, measured on a split that does not leak paraphrases.
+**Status:** done. `detect(text, lang)` ships, with calibrated soft and hard
+levels. Full numbers in [frustration_eval.md](../reports/frustration_eval.md).
+**Done when:** ~~`predict(text)` returns a calibrated frustration score for one
+caller turn, measured on a split that does not leak paraphrases.~~ Met.
+
+## What shipped
+
+**A torch MLP ensemble** — one hidden layer of 48, dropout 0.3, AdamW weight
+decay, five members averaged, **epochs chosen per fold by inner grouped CV**
+rather than asserted. Logistic regression and the lexicon are baselines.
+
+| | P | R | F1 | ROC-AUC |
+|---|---|---|---|---|
+| **torch MLP ×5 (shipped)** | **0.93±0.01** | **0.92±0.02** | **0.93±0.02** | **0.99±0.00** |
+| logistic regression | 0.93±0.01 | 0.93±0.02 | 0.93±0.01 | 0.98±0.00 |
+| French lexicon, 84 terms in 9 families | 1.00 | 0.61 | 0.76 | — |
+
+Grouped 5-fold over `group`, five seeds. The lexicon's precision is **1.00 —
+zero false alarms in 180 rows.**
+
+**Two levels, two actions:**
+
+```
+soft  if  prob >= 0.62                                      apologise, simplify
+hard  if  prob >= 0.98  OR  (lexicon hit AND prob >= 0.62)  hand to a human
+```
+
+| level | recall | precision | correction | worry | neutral | positive |
+|---|---|---|---|---|---|---|
+| soft 0.62 | 0.91 | 0.94 | 3.4/11 | 0/12 | 0.4/54 | 1.0/11 |
+| hard 0.98 | 0.78 | 0.98 | 1.0/11 | 0/12 | 0/54 | 0.2/11 |
+
+`worry` is never flagged at either level — an anxious caller is never mistaken
+for an annoyed one, which was the distinction most worth protecting.
+
+**The hard level is one of three paths to a human.** Two consecutive soft hits
+transfer, and so does the WP6/WP7 repeat counter. A row missed here is a
+delayed handover, not a lost one — which is why recall 0.78 at the hard level
+is acceptable where it would not be if this were the only route.
 
 The point is to notice a caller losing patience *before* they have to say
 "passez-moi quelqu'un", so the handover happens while it still reads as
@@ -161,6 +197,132 @@ embedder's Darija coverage rather than frustration detection.
 
 The 296 non-French rows stay in the file for whenever Darija happens.
 
+## The hybrid rule, and three attempts to get there
+
+The hard level is not a bare threshold, and the route to that is the most
+instructive thing in this package.
+
+A threshold alone lands at **0.98** — because two calm rows are confidently
+misread, `Non non, c'est bon, c'est juste une erreur de ma part` at 0.975 and
+`Oui ça marche !` at 0.943 — and costs recall 0.71, missing 24 of 85. Meanwhile
+the model scores `Bon, je répète, le genou DROIT !!` at **0.116**: explicit,
+capitalised, twice exclaimed, and all but invisible to the embedding. The word
+list catches that outright.
+
+So the two are complementary, and ORing them should be free. It took three
+attempts.
+
+**Attempt 1, gated at the soft threshold** — a rounding error, +0.01 recall.
+The gate excludes the very rows that motivated it: 0.116 is nowhere near 0.62.
+
+**Attempt 2, ungated** — *worse* than plain, F1 0.88 against 0.90. The lexicon's
+one false alarm was `Vous pouvez répéter s'il vous plaît ?`, which is itself a
+`correction`, so admitting the word list spent the exact budget the hard
+threshold was competing for and forced τ back to 0.98.
+
+**Attempt 3** — fix the lexicon instead of the rule. Step 1 had already found
+the real distinction and then ignored it: *the caller repeating themselves is
+frustration; asking the agent to repeat is a correction, and that is
+grammatical person, not vocabulary.* The repetition family had both `je répète`
+and the bare infinitive in it. Restricting it to the first person removed the
+word list's only false alarm, took its precision to 1.00, cost **no recall at
+all**, and made the gated hybrid satisfiable.
+
+Result: at the same τ and the same false alarms as the probability alone, the
+hybrid catches **six more frustrated callers**. The gain came from correcting a
+word list, not from tuning a threshold.
+
+## Measured and not shipped
+
+**A looser hard bar.** Allowing calm kinds to be flagged twice reaches τ 0.86
+with recall 0.85 and F1 0.90. Not taken: the hard level transfers the call, and
+the hybrid recovers most of that recall without spending the budget.
+
+**Negation-contrast training rows.** `Oui ça marche !` scoring 0.943 looked like
+general blindness to negation, and I recommended 40–60 polarity pairs on that
+basis. Probing fresh pairs showed the opposite — `ça marche` 0.024 against `ça
+ne marche pas` 0.700, `c'est bon comme ça` 0.014 against `ce n'est pas bon du
+tout` 0.912, all separating correctly. The two corpus failures are those two
+rows, not the phenomenon, so the data task was dropped.
+
+**`words` and `exclamations` as features.** No gain: F1 0.93 → 0.93 for the
+linear model, and inside its own standard deviation for the MLP. `merci
+beaucoup !` is a calm row with an exclamation mark. `turn_features()` stays in
+the module for WP6's use but is out of the feature vector.
+
+## EmoWOZ: a measured negative result
+
+EmoWOZ (`hhu-dsml/emowoz`, **CC-BY-NC-4.0**, Feng et al. LREC 2022) was added
+as auxiliary English training data — user turns only, `dialogue_id` as group,
+~1600 rows sampled balanced by `scripts/build_emowoz.py`. The French test folds
+were held byte-identical and EmoWOZ rows entered **training folds only**,
+enforced by an explicit loop rather than `cross_val_predict`, because a helper
+that splits one matrix cannot express "these rows train but never test".
+
+Every arm lost to French-only:
+
+| arm | LR F1 | MLP F1 |
+|---|---|---|
+| French only | **0.93** | **0.92** |
+| +1600 unweighted | 0.81 | 0.85 |
+| +200 / +400 at equal total weight | 0.89 / 0.89 | 0.89 / 0.89 |
+| +800 at equal total weight | 0.88 | 0.84 |
+| pretrain on EmoWOZ, fine-tune on French | — | 0.75 |
+
+**Weighting recovered 0.08 of the 0.12 drop, so swamping was real** — 1600
+English rows against ~144 French ones. But 0.04 survives perfect weighting, and
+that residue is genuine negative transfer: a **label-boundary mismatch**.
+EmoWOZ's `dissatisfied` is annoyance inside a restaurant-booking dialogue, and
+mapping it onto this project's label shifts the boundary rather than sharpening
+it.
+
+The mechanism is visible in one column — `neutral` false flags:
+
+```
+French only              1/0/0/0/1  of 54
++400 at equal weight     7/8/5/9/7
++1600 unweighted        12/13/12/13/13
+pretrain + fine-tune    18/17/17/19/14
+```
+
+Recall *rises* 0.93 → 0.97 while precision falls 0.93 → 0.82. It is a bias
+shift toward flagging, not a better detector.
+
+**The MLP was more robust than LR to unweighted mixing** (0.85 against 0.81) —
+dropout and the class-weighted loss absorbing some of the swamping — which is a
+point in favour of the shipped model, not of the data.
+
+Two expectations of mine that the measurement refuted: I predicted EmoWOZ's 200
+`apologetic` rows would fix the `correction` weakness, and they did not — the
+best any arm managed was leaving it unchanged. And I expected the paraphrase
+leak to be large given 42 % of rows sit in a group; it is **+0.02**.
+
+## Limitations — read these before quoting any number
+
+**Recall 0.91 holds for corpus-like phrasing and not necessarily beyond it.**
+The corpus's frustrated rows run on a narrow vocabulary — `répète`, `marre`,
+`nul`, `n'importe quoi`, `perdre mon temps`. Probes written outside it are hit
+and miss: `vous me faites tourner en bourrique` scores 1.000, while `ça
+commence à m'énerver sérieusement` and `franchement c'est inacceptable ce
+service` were both missed before the lexicon's `angry` and `fed up` families
+were extended. **The hand-written held-out set
+(`data/raw/frustration_test_user.csv`) is the real measure**, and it is scored
+once at the end of the evaluation, never used for training or thresholds.
+
+**The learning curve is flat for the shipped model.** 0.90 → 0.91 → 0.91 → 0.92
+at 25/50/75/100 % of each training fold, inside its own ±0.01–0.02. An earlier
+draft of this page called the model data-limited on the strength of logistic
+regression's +0.02 over the same range; that was reading the wrong row. More
+French rows are not the obvious lever.
+
+**Probabilities are heavily saturated.** Five members agreeing produces many
+exact 0.000 and 1.000 values, so real decisions happen in a thin band — which
+makes `oui j'ai compris` at 0.597 uncomfortably close to the soft threshold.
+
+**180 rows.** One row is 0.6 points. No figure here means anything past two
+decimals, and the hard kinds (7 to 12 rows each) are reported as counts rather
+than percentages throughout.
+
 ## Decision 5 — which error costs more? This one needs a decision
 
 Every earlier module in this project had an obvious asymmetry: a clarifying
@@ -233,28 +395,48 @@ anything consumes the score.
 
 ## Open questions
 
-1. **The error asymmetry in Decision 5.** Needed before step 3, because it is
-   what the threshold encodes. My recommendation is to favour recall; it is
-   your call about the centre's staffing.
+1. **`data/raw/frustration_test_user.csv` is not written yet.** The evaluation
+   skips it with a message. It is the only number in this package free of the
+   paraphrase-template hazard, so the limitations above stay partly
+   unquantified until it exists.
 2. **`MAX_TURNS_BEFORE_ESCALATION = 8`** is a policy choice with no measurement
-   behind it and it needs a turn counter, which is WP6's dialogue state.
-   Confirmed out of scope for WP5 unless you want it moved in.
+   behind it and it needs a turn counter, which is WP6's dialogue state. Out of
+   scope for WP5.
 3. **Darija.** 296 of 476 rows are `tn`, `tn_latn` or `mix`. Excluded from the
    reported numbers, consistent with WP4 and with the scope decision. The rows
    stay in the file.
+4. **`FRUSTRATION_ESCALATE_THRESHOLD`** is superseded by the soft/hard pair and
+   nothing reads it. Marked as such in `config.py`; delete it and its `.env`
+   line whenever convenient.
+
+## Reproducing it
+
+```powershell
+uv run python scripts/train_frustration.py     # models/frustration.pt
+uv run python scripts/eval_frustration.py      # reports/frustration_eval.md
+uv run python -m pytest tests/test_frustration.py -q
+```
+
+The evaluation defaults to running the EmoWOZ arms, which needs
+`scripts/build_emowoz.py` first and takes ~20 minutes. `--no-emowoz
+--no-curve` gives the shipped numbers in a few minutes.
 
 ## Acceptance criteria
 
-- [ ] `predict(text)` returns a `FrustrationScore` with a probability in [0, 1]
-- [ ] grouped **and** ungrouped cross-validated scores both reported, with the
-      gap stated as the cost of the paraphrase leak
-- [ ] logistic regression compared against the MLP on identical embeddings,
-      with the choice argued on a named metric
-- [ ] per-kind breakdown, with `correction`, `worry`, `other_complaint` and
-      `frustrated_hard` called out and their row counts shown
-- [ ] `FRUSTRATION_ESCALATE_THRESHOLD` calibrated, its run recorded in
-      `config.py`, under a stated policy
-- [ ] the `words`/`exclamations` ablation measured, and the features shipped
-      only if they earn it
-- [ ] missing weights degrade to a neutral score rather than raising
-- [ ] tests including one per hard kind
+- [x] `detect(text, lang)` returns `{level, prob, lexicon_hits, source}`, with
+      the probability in [0, 1] and `level` in `none`/`soft`/`hard`
+- [x] grouped **and** ungrouped cross-validated scores both reported; the
+      paraphrase leak is **+0.02** for both models
+- [x] logistic regression compared against the torch MLP on identical
+      embeddings, five seeds; the MLP ships on AUC 0.99 vs 0.98 and equal F1
+      within noise, having been chosen for the brief's architecture
+- [x] per-kind breakdown throughout, as counts; `worry` is 0/12 at both levels
+- [x] soft and hard thresholds calibrated on out-of-fold probabilities, their
+      runs recorded in `config.py`, under a stated policy
+- [x] the `words`/`exclamations` ablation measured and **not** shipped
+- [x] missing weights degrade to level `none` with source `no_model` rather
+      than raising; a model trained with a different embedder is refused
+- [x] tests: the three polarity pairs, a correction below hard, a lexicon hit
+      reaching hard, unsupported language, empty text, and the level rule as a
+      pure function — 36 tests
+- [ ] the hand-written held-out set scored once (pending the file)

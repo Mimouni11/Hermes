@@ -17,7 +17,7 @@ author in a week's time.
 | [tts.md](tts.md) | The agent's voice: Piper, the cache, and reading a booking aloud |
 | [WP3.md](WP3.md) | Intent gate, the three-layer medical safety split, FAQ retrieval and the answer path |
 | [WP4.md](WP4.md) | Exam identification: the gazetteer, fuzzy matching, the four test sets and the LLM fallback |
-| [WP5.md](WP5.md) | **Planned next:** frustration detection — the grouped split, and why the stub's features cannot exist yet |
+| [WP5.md](WP5.md) | Frustration detection: the lexicon baseline, the torch MLP ensemble, the two levels, and EmoWOZ as a negative result |
 | [WP6.md](WP6.md) | What was deferred on purpose: dialogue state, the merged LLM call |
 
 ## Where the project stands
@@ -38,7 +38,7 @@ The plan splits the work into seven packages.
 | WP2 | Speech: STT with confidence and WER, SNR quality check, TTS reply | **done** — the audio chain runs end to end |
 | WP3 | Intent gate (6 intents) + FAQ RAG | **done** — routing, medical safety, retrieval and the spoken answer |
 | WP4 | Bot level 1: gazetteer + RapidFuzz exam identification | **done** — 0 wrong exams on every hand-written test set |
-| WP5 | Frustration detector on sentence embeddings | **planned** — see [WP5.md](WP5.md) |
+| WP5 | Frustration detector on sentence embeddings | **done** — torch MLP ×5, F1 0.93 / AUC 0.99, soft and hard levels |
 | WP6 | Agent level 2: one LLM call per turn, JSON out | not started |
 | WP7 | Escalation, fixed safety script, anonymised logs | not started |
 

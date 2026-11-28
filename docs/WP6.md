@@ -3,6 +3,29 @@
 **Status:** draft, not started. This page exists to hold the things WP2, WP3
 and WP4 deliberately deferred, so they are not rediscovered late.
 
+> **Handed over from WP5 — the escalation policy.** `frustration.detect()`
+> returns a level and takes no action; `pipeline.score_frustration()` records
+> it in the turn and branches on nothing. Deciding what a level *means* is
+> WP6's, because it needs the dialogue state WP6 owns.
+>
+> The policy combines **three** inputs, and the frustration level is only one:
+>
+> - `hard` → transfer immediately
+> - **two consecutive `soft` hits** → transfer (this is why `soft` can afford
+>   recall 0.91 at precision 0.94 — a single false alarm costs one apologetic
+>   sentence, not a handover)
+> - the **repeat / clarify / audio-retry counters** → transfer on their own
+>
+> So the hard level's recall of 0.78 is not the handover rate. A caller the
+> model misses still reaches a human by the other two paths, which is what
+> makes a precision-first hard threshold defensible.
+>
+> The counters are the four fields deleted from WP5's `TurnFeatures` stub —
+> `turn_index`, `repeated_question`, `failed_matches`, `audio_retries`. They
+> were never model features: the frustration corpus is 476 standalone
+> sentences with no dialogue, so none of them could be computed from it. They
+> belong here, beside the state that can produce them.
+
 > **Raised in WP4, owned by WP7:** the exam selection call sends the caller's
 > repaired utterance to Gemini, as the FAQ answer call has since WP3. The model
 > cannot choose among five candidates without the words, so this is a question

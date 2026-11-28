@@ -806,6 +806,223 @@ def user_test_set(path: Path) -> None:
         print("\n  nothing wrong on this set")
 
 
+def write_report(
+    path: Path,
+    rows,
+    baseline: dict,
+    arms: dict,
+    table: list[dict],
+    options: list[dict],
+    picks: list,
+    totals: Counter,
+    proba_sets: list,
+    y_fr,
+) -> None:
+    """Write `reports/frustration_eval.md` and its per-case CSV.
+
+    The `.md` is committed and the `.csv` is not — few stable summaries that
+    the docs quote, against thousands of rows rewritten every run. See the
+    note in `.gitignore`.
+    """
+    import csv
+
+    from hermes.config import get_settings
+
+    settings = get_settings()
+    bp, br, bf1 = baseline["pooled"]
+    positives = totals.get("frustrated", 0) + totals.get("frustrated_hard", 0)
+
+    def cell(runs, metric: str) -> str:
+        values = [r[metric] for r in runs]
+        return f"{mean(values):.2f}±{pstdev(values):.2f}"
+
+    lines = [
+        "# WP5 — frustration detection", "",
+        "**Scope: French only.** 180 rows of `frustration.csv` with "
+        "`lang == fr`, 85 frustrated and 95 calm. The 296 Darija, Arabizi and "
+        "mixed rows are not used — measured reason: 53 of the 56 `mix` rows "
+        "carry their frustration in Darija (\"yezzi\", \"fadit mel robot\", "
+        "\"ma tefhem chay\"), so a French reading of them has almost nothing "
+        "to work from.",
+        "",
+        "Every split is `StratifiedGroupKFold` on `group`. 75 of the 180 rows "
+        "sit in a paraphrase group, so an ungrouped split trains on some "
+        "wordings of a complaint and tests on the rest.",
+        "",
+        "## Models", "",
+        "| training set | model | split | P | R | F1 | ROC-AUC |",
+        "|---|---|---|---|---|---|---|",
+        f"| lexicon baseline | "
+        f"{sum(len(t) for t in frustration.FRUSTRATION_TERMS.values())} terms "
+        f"in {len(frustration.FRUSTRATION_TERMS)} families | grouped "
+        f"| {bp:.2f} | {br:.2f} | {bf1:.2f} | — |",
+    ]
+    for (label, split), by_model in arms.items():
+        for model, runs in by_model.items():
+            lines.append(
+                f"| {label} | {model} | {split} | {cell(runs, 'precision')} "
+                f"| {cell(runs, 'recall')} | {cell(runs, 'f1')} "
+                f"| {cell(runs, 'auc')} |"
+            )
+
+    lines += [
+        "",
+        "**Shipped: the torch MLP ensemble** — one hidden layer of 48, dropout "
+        "0.3, AdamW weight decay, 5 members averaged, epochs chosen per fold "
+        "by inner grouped CV. Logistic regression and the lexicon are "
+        "baselines.",
+        "",
+        "### The paraphrase leak", "",
+        "| model | grouped | ungrouped | inflation |", "|---|---|---|---|",
+    ]
+    for model in MODELS:
+        grouped = arms.get(("(a) French only", "grouped"), {}).get(model)
+        ungrouped = arms.get(("(a) French only", "ungrouped"), {}).get(model)
+        if grouped and ungrouped:
+            g = mean(r["f1"] for r in grouped)
+            u = mean(r["f1"] for r in ungrouped)
+            lines.append(f"| {model} | {g:.2f} | {u:.2f} | +{u - g:.2f} |")
+
+    if picks:
+        chosen = Counter(pick for pick, _curve in picks)
+        averaged: dict[int, list[float]] = {}
+        for _pick, curve in picks:
+            for candidate, loss in curve.items():
+                averaged.setdefault(candidate, []).append(loss)
+        lines += [
+            "",
+            "### Epochs, chosen rather than asserted", "",
+            f"Inner grouped CV inside each outer training fold, "
+            f"{len(picks)} selections (5 seeds x 5 folds).",
+            "", "| epochs | chosen | mean inner validation loss |",
+            "|---|---:|---:|",
+        ]
+        for candidate in sorted(averaged):
+            lines.append(
+                f"| {candidate} | {chosen.get(candidate, 0)}/{len(picks)} "
+                f"| {mean(averaged[candidate]):.4f} |"
+            )
+        lines.append("")
+        lines.append(
+            "The loss rises monotonically with epochs, so a fixed 200 — the "
+            "first draft's value — was four times too many."
+        )
+
+    lines += [
+        "", "## Thresholds", "",
+        f"Swept at 0.02 on the shipped model's out-of-fold probabilities. "
+        f"Counts are means over 5 seeds.",
+        "",
+        "| tau | recall | precision | F1 | frustrated | frust_hard "
+        "| correction | worry | neutral | positive |",
+        "|---|---|---|---|---|---|---|---|---|---|",
+    ]
+    for row in table:
+        if row["threshold"] % 0.1 > 0.001:
+            continue
+        k = row["kinds"]
+        lines.append(
+            f"| {row['threshold']:.2f} | {row['recall']:.2f} "
+            f"| {row['precision']:.2f} | {row['f1']:.2f} "
+            f"| {k.get('frustrated', 0):.1f}/75 "
+            f"| {k.get('frustrated_hard', 0):.1f}/10 "
+            f"| {k.get('correction', 0):.1f}/11 | {k.get('worry', 0):.1f}/12 "
+            f"| {k.get('neutral', 0):.1f}/54 | {k.get('positive', 0):.1f}/11 |"
+        )
+
+    lines += [
+        "", "### The two levels, and the rule", "",
+        "```",
+        f"soft  if  prob >= {settings.frustration_soft_threshold:g}",
+        f"hard  if  prob >= {settings.frustration_hard_threshold:g}"
+        f"  OR  (lexicon hit AND prob >= {settings.frustration_soft_threshold:g})",
+        "```", "",
+        "| rule | tau | recall | precision | F1 | correction | worry "
+        "| positive | missed |",
+        "|---|---|---|---|---|---|---|---|---|",
+    ]
+    for option in options:
+        if option.get("unsatisfiable"):
+            lines.append(f"| {option['name']} | — | no threshold satisfies "
+                         "this constraint | | | | | | |")
+            continue
+        k = option["kinds"]
+        caught = k.get("frustrated", 0) + k.get("frustrated_hard", 0)
+        lines.append(
+            f"| {option['name']} | {option['threshold']:.2f} "
+            f"| {option['recall']:.2f} | {option['precision']:.2f} "
+            f"| {option['f1']:.2f} | {k.get('correction', 0):.1f}/11 "
+            f"| {k.get('worry', 0):.1f}/12 | {k.get('positive', 0):.1f}/11 "
+            f"| {positives - caught:.1f}/{positives} |"
+        )
+
+    lines += [
+        "",
+        "The hybrid's second arm is worth its place: at the same threshold and "
+        "the same false alarms as the probability alone, it catches six more "
+        "frustrated callers. It only became affordable once the lexicon's "
+        "repetition family was restricted to the first person — while it also "
+        "matched the bare infinitive it wrongly flagged \"Vous pouvez répéter "
+        "s'il vous plaît ?\", a `correction`, and the threshold was already "
+        "spending its whole correction budget.",
+        "",
+        "**The hard level is one of three paths to a human.** Two consecutive "
+        "soft hits transfer, and so does the WP6/WP7 repeat counter. A row "
+        "missed here is a delayed handover, not a lost one.",
+        "",
+        "## Limitations", "",
+        "- **Recall 0.91 holds for corpus-like phrasing.** The corpus's "
+        "frustrated rows run on a narrow vocabulary, and probes with wording "
+        "outside it are hit and miss. The hand-written held-out set is the "
+        "real measure.",
+        "- The corpus is visibly templated — `Sérieusement, / Oh là là, / "
+        "Écoutez,` prefixed onto a core complaint. That is what `group` "
+        "encodes and why the grouped split is load-bearing.",
+        "- Two calm rows are confidently misread: `Non non, c'est bon` at "
+        "0.975 and `Oui ça marche !` at 0.943. Both are correctly labelled, "
+        "so this is model error. It is **not** general negation blindness: on "
+        "fresh polarity pairs the model separates `ça marche` 0.024 from `ça "
+        "ne marche pas` 0.700.",
+        "- Probabilities are heavily saturated. Real decisions happen in a "
+        "thin band, which makes `oui j'ai compris` at 0.597 uncomfortably "
+        "close to the soft threshold.",
+        f"- 180 rows. One row is 0.6 points, so **no figure here is "
+        f"meaningful to more than two decimals**, and the hard kinds "
+        f"(7 to 12 rows each) are reported as counts, never percentages.",
+    ]
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    # Per case, for digging rather than for reading.
+    import numpy as np
+
+    means = np.vstack(proba_sets).mean(axis=0)
+    csv_path = path.with_suffix(".csv")
+    with csv_path.open("w", encoding="utf-8", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=[
+            "id", "text", "label", "kind", "group", "mean_prob",
+            "level_at_shipped", "lexicon_hits",
+        ])
+        writer.writeheader()
+        for index, row in enumerate(rows):
+            probability = float(means[index])
+            hits = frustration.lexicon_hits(row["text"])
+            writer.writerow({
+                "id": row.get("id", index), "text": row["text"],
+                "label": row["label"], "kind": row["kind"],
+                "group": row["group"], "mean_prob": round(probability, 4),
+                "level_at_shipped": frustration.level_for(
+                    probability, bool(hits),
+                    settings.frustration_soft_threshold,
+                    settings.frustration_hard_threshold,
+                ),
+                "lexicon_hits": "|".join(hits),
+            })
+    print(f"\nwrote {path}")
+    print(f"wrote {csv_path}  (gitignored)")
+
+
 def curve_report(curve: dict[str, dict]) -> None:
     print(f"\n{'=' * 78}")
     print("LEARNING CURVE — arm (a), French F1 against French training rows")
@@ -858,6 +1075,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="hand-written held-out set, scored once at the end and never "
              "used for training or thresholds",
     )
+    parser.add_argument("--reports", type=Path,
+                        default=get_settings().paths.root / "reports")
+    parser.add_argument("--no-report", action="store_true",
+                        help="print everything but write no files")
     parser.add_argument("--no-thresholds", action="store_true",
                         help="skip the step 3 threshold sweep")
     parser.add_argument("--epoch-candidates", type=int, nargs="+", default=None,
@@ -997,6 +1218,11 @@ def main(argv: list[str] | None = None) -> int:
         hard_options_report(options, totals)
         stubborn_rows(rows, proba_sets, y_fr)
         user_test_set(args.user_test)
+        if not args.no_report:
+            write_report(
+                args.reports / "frustration_eval.md", rows, baseline, arms,
+                table, options, picks, totals, proba_sets, y_fr,
+            )
 
     if picks:
         print(f"\n{'=' * 70}")

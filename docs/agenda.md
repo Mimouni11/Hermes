@@ -4,7 +4,7 @@
 no LLM call and no network access: the model fills a JSON form, Python does the
 searching, holding and booking, and every rule is checked here.
 
-SQLite, three tables, built by `scripts/build_agenda.py`.
+SQLite, three tables, built by `scripts/agenda/build_agenda.py`.
 
 ## Schema
 

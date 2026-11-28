@@ -13,9 +13,9 @@ with the worse scores.
 The answer travels in the payload rather than being looked up afterwards: at 24
 entries there is no reason for a second round trip.
 
-    python scripts/build_faq_index.py
-    python scripts/build_faq_index.py --recreate
-    python scripts/build_faq_index.py --dry-run
+    python scripts/faq/build_faq_index.py
+    python scripts/faq/build_faq_index.py --recreate
+    python scripts/faq/build_faq_index.py --dry-run
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from hermes.infra import embeddings, vector_store  # noqa: E402
 from hermes.config import get_settings  # noqa: E402

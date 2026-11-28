@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from hermes.understand import exam_bot
-from scripts.build_exam_index import build, read_csv
+from scripts.exams.build_exam_index import build, read_csv
 
 
 def write_index(

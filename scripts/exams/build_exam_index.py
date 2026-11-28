@@ -24,8 +24,8 @@ add five near-duplicate entries per exam (`irm ras`, `IRM mta3 mo5`) and let a
 French utterance win against an Arabizi keyword, which distorts every margin in
 the ranking. The flag exists so Darija is a rebuild rather than a rewrite.
 
-    uv run python scripts/build_exam_index.py
-    uv run python scripts/build_exam_index.py --langs fr tn --out other.json
+    uv run python scripts/exams/build_exam_index.py
+    uv run python scripts/exams/build_exam_index.py --langs fr tn --out other.json
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from hermes.config import get_settings  # noqa: E402
 from hermes.understand.exam_bot import (  # noqa: E402

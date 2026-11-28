@@ -4,7 +4,7 @@ Reads the exam catalogue from `data/raw`, expands every official name, alias,
 abbreviation and body part into normalised surface forms, and writes the
 surface-form to exam-id map to `data/processed`.
 
-    python scripts/build_exam_gazetteer.py
+    python scripts/exams/build_exam_gazetteer.py
 """
 
 from __future__ import annotations

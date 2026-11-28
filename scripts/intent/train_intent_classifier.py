@@ -19,8 +19,8 @@ macro F1 and, more importantly, on medical recall. Accuracy rewards getting the
 big class right, and `info` is 42% of the French corpus. Balanced logistic
 regression is what ships.
 
-    python scripts/train_intent_classifier.py
-    python scripts/train_intent_classifier.py --lang all --compare
+    python scripts/intent/train_intent_classifier.py
+    python scripts/intent/train_intent_classifier.py --lang all --compare
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from hermes.infra import embeddings  # noqa: E402
 from hermes.config import get_settings  # noqa: E402

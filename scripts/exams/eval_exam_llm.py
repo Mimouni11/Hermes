@@ -21,8 +21,8 @@ Keeping them apart matters because the two pull in opposite directions: the
 quality run must remove every obstacle to getting an answer, and the
 availability run must preserve them.
 
-    uv run python scripts/eval_exam_llm.py
-    uv run python scripts/eval_exam_llm.py --t1-sample 40 --availability 20
+    uv run python scripts/exams/eval_exam_llm.py
+    uv run python scripts/exams/eval_exam_llm.py --t1-sample 40 --availability 20
 """
 
 from __future__ import annotations
@@ -32,18 +32,21 @@ import csv
 import json
 import random
 import shutil
+import sys
 import time
 from collections import Counter
 from dataclasses import dataclass, replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from build_exam_index import build, read_csv
-from calibrate_exam import hold_out
-from eval_exam import Sample, replay_rules, samples
-from hermes.understand import exam_bot
-from hermes.infra import llm
-from hermes.config import get_settings, set_settings
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.exams.build_exam_index import build, read_csv  # noqa: E402
+from scripts.exams.calibrate_exam import hold_out  # noqa: E402
+from scripts.exams.eval_exam import Sample, replay_rules, samples  # noqa: E402
+from hermes.understand import exam_bot  # noqa: E402
+from hermes.infra import llm  # noqa: E402
+from hermes.config import get_settings, set_settings  # noqa: E402
 
 #: Seconds between calls in the quality run. The burst that produced 254
 #: errors had no gap at all; the free tier recovers if asked politely.

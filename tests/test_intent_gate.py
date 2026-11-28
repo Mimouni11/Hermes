@@ -6,7 +6,7 @@ Qdrant running and the classifier trained, so those tests skip rather than
 fail on a machine where the index has not been built.
 
 What the routing tests check is the *order of the layers*, not the accuracy.
-Accuracy is measured by `scripts/calibrate_intent.py` against the whole corpus
+Accuracy is measured by `scripts/intent/calibrate_intent.py` against the whole corpus
 and belongs in a report; a unit test asserting "78.9%" would just encode one
 run of a model into the suite.
 """
@@ -28,9 +28,9 @@ def _needs_index() -> None:
     if not vector_store.ping():
         pytest.skip("Qdrant is not running: docker compose up -d")
     if vector_store.count(settings.intent_collection) == 0:
-        pytest.skip("intent collection is empty: scripts/build_intent_index.py")
+        pytest.skip("intent collection is empty: scripts/intent/build_intent_index.py")
     if not (settings.paths.models / settings.intent_model_file).exists():
-        pytest.skip("no classifier: scripts/train_intent_classifier.py")
+        pytest.skip("no classifier: scripts/intent/train_intent_classifier.py")
 
 
 # --------------------------------------------------------------------------

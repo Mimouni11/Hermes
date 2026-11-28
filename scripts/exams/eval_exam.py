@@ -11,7 +11,7 @@ is the matcher on its own", which is also what the demo falls back to whenever
 the model is slow. `eval_exam_llm.py` answers "does the model help, and is it
 there when needed".
 
-    uv run python scripts/eval_exam.py
+    uv run python scripts/exams/eval_exam.py
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ import csv
 import json
 import re
 import shutil
+import sys
 import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass, replace
@@ -30,11 +31,13 @@ from tempfile import TemporaryDirectory
 
 import jiwer
 
-from build_exam_index import build, read_csv
-from calibrate_exam import hold_out, survives_holdout
-from hermes.understand import exam_bot
-from hermes.config import get_settings, set_settings
-from hermes.listen.stt import normalise_for_wer
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.exams.build_exam_index import build, read_csv  # noqa: E402
+from scripts.exams.calibrate_exam import hold_out, survives_holdout  # noqa: E402
+from hermes.understand import exam_bot  # noqa: E402
+from hermes.config import get_settings, set_settings  # noqa: E402
+from hermes.listen.stt import normalise_for_wer  # noqa: E402
 
 
 @dataclass(frozen=True)

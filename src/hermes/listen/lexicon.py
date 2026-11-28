@@ -175,7 +175,7 @@ def load_lexicon(path: str | Path | None = None) -> Lexicon:
         if not target.exists():
             raise RuntimeError(
                 f"no lexicon at {target}. Build it with:\n"
-                "    uv run python scripts/build_lexicon.py"
+                "    uv run python scripts/lexicon/build_lexicon.py"
             )
         data = json.loads(target.read_text(encoding="utf-8"))
         _LEXICON[key] = Lexicon(

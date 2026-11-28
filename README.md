@@ -60,10 +60,10 @@ ollama pull mistral
 Input CSVs go in `data/raw/` by hand — they are not generated. The build scripts turn them into the embeddings, gazetteer and database in `data/processed/`:
 
 ```powershell
-uv run python scripts/build_intent_centroids.py   # intent centroids
-uv run python scripts/build_faq_index.py          # embedded FAQ index
-uv run python scripts/build_exam_gazetteer.py     # exam surface forms → exam ids
-uv run python scripts/build_agenda.py --reset     # data/processed/agenda.db
+uv run python scripts/intent/build_intent_centroids.py   # intent centroids
+uv run python scripts/faq/build_faq_index.py          # embedded FAQ index
+uv run python scripts/exams/build_exam_gazetteer.py     # exam surface forms → exam ids
+uv run python scripts/agenda/build_agenda.py --reset     # data/processed/agenda.db
 ```
 
 ## How to run
@@ -81,7 +81,7 @@ uv run pytest
 | Path | What is in it |
 | --- | --- |
 | `src/hermes/` | the package: one module per stage of a turn |
-| `scripts/` | `build_*.py`, raw CSVs → `data/processed/` |
+| `scripts/` | Workflow folders for data builders, calibration, training and evaluation. Builders use raw CSVs → `data/processed/` |
 | `app/gradio_app.py` | the demo UI |
 | `data/raw/` | input CSVs, copied in by hand |
 | `data/audio/` | test clips (wav files gitignored) |

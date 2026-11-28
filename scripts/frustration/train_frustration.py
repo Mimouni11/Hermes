@@ -11,8 +11,8 @@ The epoch count is chosen the same way it was during evaluation: inner grouped
 cross-validation over `group`, on averaged validation loss. Here the inner
 split runs over the whole 180 rows rather than inside an outer fold.
 
-    uv run python scripts/train_frustration.py
-    uv run python scripts/train_frustration.py --dry-run
+    uv run python scripts/frustration/train_frustration.py
+    uv run python scripts/frustration/train_frustration.py --dry-run
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from hermes.understand import frustration  # noqa: E402
 from hermes.config import get_settings  # noqa: E402
@@ -101,7 +101,7 @@ def main(argv: list[str] | None = None) -> int:
         # Quoted from the grouped out-of-fold evaluation, not from this fit.
         "measured_on_held_out": {
             "f1": 0.93, "auc": 0.99, "precision": 0.93, "recall": 0.92,
-            "note": "5 seeds x 5 grouped folds, scripts/eval_frustration.py",
+            "note": "5 seeds x 5 grouped folds, scripts/frustration/eval_frustration.py",
         },
     })
     size = args.out.stat().st_size / 1024

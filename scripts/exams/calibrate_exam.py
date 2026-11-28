@@ -1,17 +1,20 @@
-"""Evaluate WP4 before LLM fallback. Run with uv run python scripts/calibrate_exam.py."""
+"""Evaluate WP4 before LLM fallback. Run with uv run python scripts/exams/calibrate_exam.py."""
 
 from __future__ import annotations
 
 import argparse
+import sys
 import json
 from collections import Counter
 from dataclasses import dataclass, replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from build_exam_index import build, read_csv
-from hermes.understand import exam_bot
-from hermes.config import get_settings, set_settings
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.exams.build_exam_index import build, read_csv  # noqa: E402
+from hermes.understand import exam_bot  # noqa: E402
+from hermes.config import get_settings, set_settings  # noqa: E402
 
 
 @dataclass(frozen=True)

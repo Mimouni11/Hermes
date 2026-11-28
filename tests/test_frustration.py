@@ -23,7 +23,7 @@ def _needs_model() -> None:
     settings = get_settings()
     path = settings.paths.models / settings.frustration_model_file
     if not path.is_file():
-        pytest.skip("no frustration model: scripts/train_frustration.py")
+        pytest.skip("no frustration model: scripts/frustration/train_frustration.py")
     frustration.reset_model()
     if frustration.load_model() is None:
         pytest.skip("frustration model present but not loadable")

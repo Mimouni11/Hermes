@@ -59,7 +59,7 @@ script has to guard against a missing folder.
 | `MIN_DURATION_S` | `0.30` | Shorter than this there is nothing to transcribe |
 | `MAX_SNR_DB` | `60.0` | A clean clip's noise floor is near zero, so the ratio is capped |
 
-The two calibrated values come from `scripts/calibrate_gate.py` run against
+The two calibrated values come from `scripts/audio/calibrate_gate.py` run against
 measured WER, not from judgement. Re-run it whenever the audio set or the model
 changes — the numbers are only valid for the thing they were measured on.
 

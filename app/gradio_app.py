@@ -632,7 +632,7 @@ def main() -> int:
     model = settings.paths.models / settings.intent_model_file
     if not model.exists():
         print("  ! no intent classifier — run: "
-              "uv run python scripts/train_intent_classifier.py")
+              "uv run python scripts/intent/train_intent_classifier.py")
 
     if tts.find_voice_file() is None:
         print(f"  ! no Piper voice in {settings.paths.models / 'piper'}")

@@ -2,7 +2,7 @@
 
 The FAQ lives as question/answer rows in `data/raw/faq.csv`. At build time
 every phrasing of every question is embedded into the `hermes_faq` collection
-by `scripts/build_faq_index.py`; at call time the caller's question is embedded
+by `scripts/faq/build_faq_index.py`; at call time the caller's question is embedded
 and the nearest entries come back. The retrieved passages are grounding for
 :mod:`hermes.agent` — the agent rephrases them, it does not invent around them.
 

@@ -14,9 +14,9 @@ the `group` column, identical in every arm, and EmoWOZ rows enter *training
 folds only*. Every number below is measured on French rows the model did not
 see, so adding English data cannot flatter the score by widening the test set.
 
-    uv run python scripts/eval_frustration.py
-    uv run python scripts/eval_frustration.py --baseline-only
-    uv run python scripts/eval_frustration.py --no-emowoz      # arm (a) only
+    uv run python scripts/frustration/eval_frustration.py
+    uv run python scripts/frustration/eval_frustration.py --baseline-only
+    uv run python scripts/frustration/eval_frustration.py --no-emowoz      # arm (a) only
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from collections import Counter
 from pathlib import Path
 from statistics import mean, pstdev
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from hermes.understand import frustration  # noqa: E402
 
@@ -755,7 +755,7 @@ def user_test_set(path: Path) -> None:
     settings = get_settings()
     if not (settings.paths.models / settings.frustration_model_file).is_file():
         print("  no shipped model on disk: uv run python "
-              "scripts/train_frustration.py")
+              "scripts/frustration/train_frustration.py")
         return
 
     frustration.reset_model()
@@ -1134,7 +1134,7 @@ def main(argv: list[str] | None = None) -> int:
               f"({int(y_aux.sum())} frustrated, {len(y_aux) - int(y_aux.sum())} calm)")
     elif not args.no_emowoz:
         print(f"\n! no EmoWOZ at {args.emowoz}")
-        print("  build it first: uv run python scripts/build_emowoz.py")
+        print("  build it first: uv run python scripts/frustration/build_emowoz.py")
         print("  continuing with arm (a) only")
 
     arms: dict = {}

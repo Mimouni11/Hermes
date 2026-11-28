@@ -18,7 +18,7 @@ Three sources of test material:
 
 Writes `reports/lexicon_eval.csv`.
 
-    python scripts/eval_lexicon.py
+    python scripts/lexicon/eval_lexicon.py
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from hermes.listen import lexicon  # noqa: E402
 from hermes.config import get_settings  # noqa: E402
@@ -173,7 +173,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     """Run every case, write the table, print the four metrics."""
     args = parse_args(argv)
-    root = Path(__file__).resolve().parents[1]
+    root = Path(__file__).resolve().parents[2]
     book = lexicon.load_lexicon()
     rng = random.Random(args.seed)
 

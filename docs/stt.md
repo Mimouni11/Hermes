@@ -80,7 +80,7 @@ Untested — see *What to try next*.
 
 ## Measured results
 
-`scripts/eval_stt.py` runs every clip through every model on raw and normalised
+`scripts/audio/eval_stt.py` runs every clip through every model on raw and normalised
 audio, and writes `reports/stt_results.csv`.
 
 ### Model comparison — 35 clips, both models
@@ -161,7 +161,7 @@ folding them would hide exactly the errors in the table above.
 
 ## Calibrating the gate
 
-`scripts/calibrate_gate.py` bins WER against each measurement and finds the
+`scripts/audio/calibrate_gate.py` bins WER against each measurement and finds the
 least aggressive cut that still isolates a group at mean WER ≥ 0.5 — half the
 words wrong, so any slot filled from it is a guess.
 

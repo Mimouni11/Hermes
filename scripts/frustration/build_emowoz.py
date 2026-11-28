@@ -19,8 +19,8 @@ measurement is the only thing that settles them:
 Nothing here touches the French test folds. These rows are training material
 only, which `eval_frustration.py` enforces.
 
-    uv run python scripts/build_emowoz.py
-    uv run python scripts/build_emowoz.py --target 1500 --seed 7
+    uv run python scripts/frustration/build_emowoz.py
+    uv run python scripts/frustration/build_emowoz.py --target 1500 --seed 7
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ import urllib.request
 from collections import Counter
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from hermes.config import get_settings  # noqa: E402
 

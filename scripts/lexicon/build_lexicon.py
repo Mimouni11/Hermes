@@ -18,9 +18,9 @@ report can tell evidence from conjecture:
    French mistranscriptions. Cached to the lexicon; nothing calls an LLM at
    run time.
 
-    python scripts/build_lexicon.py
-    python scripts/build_lexicon.py --no-whisper --no-llm   # terms only
-    python scripts/build_lexicon.py --sentences 3
+    python scripts/lexicon/build_lexicon.py
+    python scripts/lexicon/build_lexicon.py --no-whisper --no-llm   # terms only
+    python scripts/lexicon/build_lexicon.py --sentences 3
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ import sys
 import unicodedata
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from hermes.config import get_settings  # noqa: E402
 

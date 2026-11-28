@@ -489,14 +489,14 @@ def get_index(reload: bool = False) -> ExamIndex:
 
 
 def load_index(path: Path | None = None) -> ExamIndex:
-    """Read the index written by `scripts/build_exam_index.py`."""
+    """Read the index written by `scripts/exams/build_exam_index.py`."""
     settings = get_settings()
     source = path or settings.paths.processed / settings.exam_index_file
 
     if not source.exists():
         raise RuntimeError(
             f"no exam index at {source}. Build it with:\n"
-            "    uv run python scripts/build_exam_index.py"
+            "    uv run python scripts/exams/build_exam_index.py"
         )
 
     payload: dict[str, Any] = json.loads(source.read_text(encoding="utf-8"))

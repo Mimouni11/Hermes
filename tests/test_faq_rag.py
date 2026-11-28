@@ -29,7 +29,7 @@ def _needs_index() -> None:
     if not vector_store.ping():
         pytest.skip("Qdrant is not running: docker compose up -d")
     if vector_store.count(settings.faq_collection) == 0:
-        pytest.skip("FAQ collection is empty: scripts/build_faq_index.py")
+        pytest.skip("FAQ collection is empty: scripts/faq/build_faq_index.py")
 
 
 def _entry(faq_id: str, score: float) -> Retrieved:

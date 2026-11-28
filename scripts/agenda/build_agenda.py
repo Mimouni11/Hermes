@@ -8,8 +8,8 @@ Opening hours: Monday to Friday 8:00-18:00, Saturday 8:00-13:00, closed Sunday.
 Slot length per modality is the most common ``duration_min`` for that modality
 in the exam catalogue.
 
-    python scripts/build_agenda.py
-    python scripts/build_agenda.py --reset --seed 7 --prebook 0.3
+    python scripts/agenda/build_agenda.py
+    python scripts/agenda/build_agenda.py --reset --seed 7 --prebook 0.3
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ import sys
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from hermes.book import agenda  # noqa: E402
 

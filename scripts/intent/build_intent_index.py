@@ -13,9 +13,9 @@ Re-running is safe: point ids are derived from the corpus id, so a rebuild
 overwrites rather than duplicates. `--recreate` drops the collection first,
 which is what you want after deleting rows from the CSV.
 
-    python scripts/build_intent_index.py
-    python scripts/build_intent_index.py --recreate
-    python scripts/build_intent_index.py --dry-run
+    python scripts/intent/build_intent_index.py
+    python scripts/intent/build_intent_index.py --recreate
+    python scripts/intent/build_intent_index.py --dry-run
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from hermes.infra import embeddings, vector_store  # noqa: E402
 from hermes.config import get_settings  # noqa: E402

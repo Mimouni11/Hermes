@@ -17,9 +17,9 @@ What the comparison is for:
 The first run downloads the model weights, which is the only step that needs
 the network. Nothing else here leaves the machine.
 
-    python scripts/eval_stt.py
-    python scripts/eval_stt.py --models base
-    python scripts/eval_stt.py --models small base --variants raw normalized
+    python scripts/audio/eval_stt.py
+    python scripts/audio/eval_stt.py --models base
+    python scripts/audio/eval_stt.py --models small base --variants raw normalized
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from hermes.listen import audio_quality  # noqa: E402
 from hermes.config import get_settings  # noqa: E402
@@ -441,10 +441,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.manifest.exists():
         print(f"manifest not found: {args.manifest}", file=sys.stderr)
-        print("run: python scripts/pick_audio_sentences.py", file=sys.stderr)
+        print("run: python scripts/audio/pick_audio_sentences.py", file=sys.stderr)
         return 1
 
-    root = Path(__file__).resolve().parents[1]
+    root = Path(__file__).resolve().parents[2]
     manifest_rows = read_manifest(args.manifest)
     print(f"{len(manifest_rows)} rows in {args.manifest.name}")
     print(f"models: {', '.join(args.models)}   variants: {', '.join(args.variants)}")

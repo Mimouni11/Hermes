@@ -15,9 +15,9 @@ Two engines, in order:
 Both are resampled to 16 kHz mono, because that is what Whisper consumes and
 what the recorded clips are specified at: one sample rate across the set.
 
-    python scripts/make_tts_clips.py
-    python scripts/make_tts_clips.py --engine gtts --force
-    python scripts/make_tts_clips.py --voice models/piper/fr_FR-siwis-medium.onnx
+    python scripts/audio/make_tts_clips.py
+    python scripts/audio/make_tts_clips.py --engine gtts --force
+    python scripts/audio/make_tts_clips.py --voice models/piper/fr_FR-siwis-medium.onnx
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ import wave
 from dataclasses import dataclass
 from pathlib import Path
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 DEFAULT_MANIFEST = _PROJECT_ROOT / "data" / "audio" / "manifest.csv"
 DEFAULT_VOICE_DIR = _PROJECT_ROOT / "models" / "piper"
@@ -224,7 +224,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.manifest.exists():
         print(f"manifest not found: {args.manifest}", file=sys.stderr)
-        print("run: python scripts/pick_audio_sentences.py", file=sys.stderr)
+        print("run: python scripts/audio/pick_audio_sentences.py", file=sys.stderr)
         return 1
 
     rows = [r for r in read_manifest(args.manifest) if r.get("source") == "tts"]

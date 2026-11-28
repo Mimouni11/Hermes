@@ -91,11 +91,11 @@ running it twice does not grow the manifest.
 ## Rebuilding from nothing
 
 ```powershell
-uv run python scripts/pick_audio_sentences.py   # manifest + the recording list
-uv run python scripts/make_tts_clips.py         # the 8 synthetic clips
+uv run python scripts/audio/pick_audio_sentences.py   # manifest + the recording list
+uv run python scripts/audio/make_tts_clips.py         # the 8 synthetic clips
 #   ... record the 12 sentences into data/audio/recorded/ ...
-uv run python scripts/convert_recordings.py     # whatever you recorded -> WAV
-uv run python scripts/add_noise.py --snr 20 10 5 0 -5
+uv run python scripts/audio/convert_recordings.py     # whatever you recorded -> WAV
+uv run python scripts/audio/add_noise.py --snr 20 10 5 0 -5
 ```
 
 The noisy clips are drawn from whatever has audio on disk at the time, so run

@@ -20,8 +20,8 @@ similarity 1.0, and the classifier was fitted on them. So their similarity is
 recomputed leave-one-out and their probabilities cross-validated. Mixing the
 two would make any τ look free.
 
-    python scripts/calibrate_intent.py
-    python scripts/calibrate_intent.py --lang fr --top-k 5
+    python scripts/intent/calibrate_intent.py
+    python scripts/intent/calibrate_intent.py --lang fr --top-k 5
 """
 
 from __future__ import annotations
@@ -34,7 +34,8 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from hermes.infra import embeddings, vector_store  # noqa: E402
 from hermes.understand import intent_gate  # noqa: E402
@@ -90,8 +91,7 @@ def cross_validated_probabilities(
     """Out-of-fold probabilities, so the classifier is not graded on its own fit."""
     from sklearn.model_selection import StratifiedKFold, cross_val_predict
 
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from train_intent_classifier import build_model  # noqa: E402
+    from scripts.intent.train_intent_classifier import build_model
 
     labels = np.array([r["intent"] for r in rows])
     model = build_model()

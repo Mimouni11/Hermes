@@ -246,7 +246,7 @@ def load_classifier(path: Any = None) -> dict[str, Any]:
         if not target.exists():
             raise RuntimeError(
                 f"no intent classifier at {target}. Build it with:\n"
-                "    uv run python scripts/train_intent_classifier.py"
+                "    uv run python scripts/intent/train_intent_classifier.py"
             )
         import joblib
 

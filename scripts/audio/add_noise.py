@@ -16,9 +16,9 @@ synthetic babble generated here from a fixed seed and saved to
 The script is idempotent: it regenerates every noisy row rather than appending
 to what is already there, so running it twice does not grow the manifest.
 
-    python scripts/add_noise.py
-    python scripts/add_noise.py --clips 5 --snr 20 10 5 --seed 7
-    python scripts/add_noise.py --noise data/audio/noise/waiting_room.wav
+    python scripts/audio/add_noise.py
+    python scripts/audio/add_noise.py --clips 5 --snr 20 10 5 --seed 7
+    python scripts/audio/add_noise.py --noise data/audio/noise/waiting_room.wav
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 DEFAULT_MANIFEST = _PROJECT_ROOT / "data" / "audio" / "manifest.csv"
 
@@ -304,7 +304,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.manifest.exists():
         print(f"manifest not found: {args.manifest}", file=sys.stderr)
-        print("run: python scripts/pick_audio_sentences.py", file=sys.stderr)
+        print("run: python scripts/audio/pick_audio_sentences.py", file=sys.stderr)
         return 1
 
     audio_dir = args.manifest.parent

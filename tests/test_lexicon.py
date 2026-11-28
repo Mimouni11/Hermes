@@ -4,7 +4,7 @@ The layer exists because Whisper mangles exactly the words that matter, and it
 has to do two opposite things at once: rewrite a mistranscribed exam name, and
 *never* rewrite a word that was right. The tests are mostly about the second.
 
-They need the built lexicon (`scripts/build_lexicon.py`) and skip without it,
+They need the built lexicon (`scripts/lexicon/build_lexicon.py`) and skip without it,
 so a fresh clone still passes.
 """
 
@@ -19,7 +19,7 @@ from hermes.config import get_settings
 def _needs_lexicon() -> None:
     settings = get_settings()
     if not (settings.paths.processed / settings.lexicon_file).exists():
-        pytest.skip("no lexicon: scripts/build_lexicon.py")
+        pytest.skip("no lexicon: scripts/lexicon/build_lexicon.py")
 
 
 # --------------------------------------------------------------------------

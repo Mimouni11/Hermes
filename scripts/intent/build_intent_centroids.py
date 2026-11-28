@@ -4,7 +4,7 @@ Reads the labelled intent examples from `data/raw`, embeds them and writes one
 averaged vector per intent to `data/processed`. Re-run whenever the examples
 change.
 
-    python scripts/build_intent_centroids.py
+    python scripts/intent/build_intent_centroids.py
 """
 
 from __future__ import annotations

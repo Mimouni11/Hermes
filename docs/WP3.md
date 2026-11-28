@@ -294,9 +294,9 @@ Not a demo page — a bench for seeing every stage work.
 | `src/hermes/infra/vector_store.py` | new — Qdrant client, collections, upsert, search |
 | `src/hermes/understand/intent_gate.py` | stub → implement |
 | `src/hermes/understand/faq_rag.py` | stub → implement |
-| `scripts/build_intent_centroids.py` | stub → repurpose as the intent indexer |
-| `scripts/build_faq_index.py` | stub → implement as the FAQ indexer |
-| `scripts/calibrate_intent.py` | new — τ and the margin, like `calibrate_gate.py` |
+| `scripts/intent/build_intent_centroids.py` | stub → repurpose as the intent indexer |
+| `scripts/faq/build_faq_index.py` | stub → implement as the FAQ indexer |
+| `scripts/intent/calibrate_intent.py` | new — τ and the margin, like `calibrate_gate.py` |
 | `app/gradio_app.py` | stub → the testing app |
 | `tests/test_intent_gate.py`, `tests/test_faq_rag.py` | stubs → implement |
 | `docker-compose.yml` | new — the Qdrant service |

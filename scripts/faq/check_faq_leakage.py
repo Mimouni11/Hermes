@@ -9,8 +9,8 @@ This is the kind of leak that inflates a number quietly and is invisible in the
 result, so it is worth a script rather than a glance. Run it whenever either
 file changes.
 
-    python scripts/check_faq_leakage.py
-    python scripts/check_faq_leakage.py --threshold 85
+    python scripts/faq/check_faq_leakage.py
+    python scripts/faq/check_faq_leakage.py --threshold 85
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ import sys
 import unicodedata
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from hermes.config import get_settings  # noqa: E402
 

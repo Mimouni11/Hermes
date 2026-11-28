@@ -20,7 +20,7 @@ Reported for each: wrong answers, correct answers, refusals (wanted and
 unwanted), latency, and the timeout rate. Writes
 `reports/faq_answer_eval.csv`.
 
-    python scripts/eval_faq_answer.py
+    python scripts/faq/eval_faq_answer.py
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from hermes.understand import faq_rag  # noqa: E402
 from hermes.infra import llm  # noqa: E402

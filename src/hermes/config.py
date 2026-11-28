@@ -212,7 +212,7 @@ DEFAULTS: dict[str, object] = {
     "FAQ_COLLECTION": "hermes_faq",
     "INTENT_TOP_K": 5,
     "FAQ_TOP_K": 3,
-    # Calibrated by scripts/calibrate_gate.py against measured WER, not picked.
+    # Calibrated by scripts/audio/calibrate_gate.py against measured WER, not picked.
     # At 11.2 dB the gate rejects 13 of 45 clips whose mean WER is 0.511 and
     # keeps 32 whose mean WER is 0.152 — the cut that isolates the unusable
     # group without throwing away turns the agent could still have handled.
@@ -362,7 +362,7 @@ DEFAULTS: dict[str, object] = {
     # which is gitignored: it is derived from exams.csv and rebuilds in under
     # a second.
     "EXAM_INDEX_FILE": "exam_index.json",
-    # WP4 step 5 (scripts/calibrate_exam.py --floor 82 --margin 8).
+    # WP4 step 5 (scripts/exams/calibrate_exam.py --floor 82 --margin 8).
     # At margin 8 the floor of 82 gives 231/841 correct and 137/841 wrong
     # resolutions on T1, and 20/22 correct with 0 wrong on T2. A floor of 85
     # loses 13 correct T1 resolutions and avoids one wrong resolution.

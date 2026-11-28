@@ -17,9 +17,9 @@ Recorder metadata is dropped on purpose: a phone writes the device model and a
 creation timestamp into an `.m4a`, and neither belongs in the repository
 (Rule 3). The original files are left alone — nothing here deletes a recording.
 
-    python scripts/convert_recordings.py
-    python scripts/convert_recordings.py --force
-    python scripts/convert_recordings.py --normalize --peak-dbfs -3
+    python scripts/audio/convert_recordings.py
+    python scripts/audio/convert_recordings.py --force
+    python scripts/audio/convert_recordings.py --normalize --peak-dbfs -3
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 DEFAULT_MANIFEST = _PROJECT_ROOT / "data" / "audio" / "manifest.csv"
 
@@ -301,7 +301,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.manifest.exists():
         print(f"manifest not found: {args.manifest}", file=sys.stderr)
-        print("run: python scripts/pick_audio_sentences.py", file=sys.stderr)
+        print("run: python scripts/audio/pick_audio_sentences.py", file=sys.stderr)
         return 1
 
     rows = [r for r in read_manifest(args.manifest) if r.get("source") == args.source]

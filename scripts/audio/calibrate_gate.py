@@ -16,8 +16,8 @@ Two thresholds come out, and they sit at different points in the pipeline:
 Neither is a hard rule in this module: it prints what the data supports, and
 the numbers are written into `config.py` by hand so the choice stays visible.
 
-    python scripts/calibrate_gate.py
-    python scripts/calibrate_gate.py --limit 0.5 --variant raw
+    python scripts/audio/calibrate_gate.py
+    python scripts/audio/calibrate_gate.py --limit 0.5 --variant raw
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from hermes.config import get_settings  # noqa: E402
 
@@ -236,7 +236,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.results.exists():
         print(f"results not found: {args.results}", file=sys.stderr)
-        print("run: python scripts/eval_stt.py", file=sys.stderr)
+        print("run: python scripts/audio/eval_stt.py", file=sys.stderr)
         return 1
 
     clips = read_results(args.results, args.variant, args.model)

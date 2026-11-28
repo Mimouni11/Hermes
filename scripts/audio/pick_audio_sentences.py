@@ -15,8 +15,8 @@ The selection is constrained, not merely random:
 The same seed always gives the same 20 sentences and the same split, so a
 recording made today still matches the manifest regenerated next week.
 
-    python scripts/pick_audio_sentences.py
-    python scripts/pick_audio_sentences.py --seed 11 --total 20 --tts 8
+    python scripts/audio/pick_audio_sentences.py
+    python scripts/audio/pick_audio_sentences.py --seed 11 --total 20 --tts 8
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 DEFAULT_INTENTS_CSV = _PROJECT_ROOT / "data" / "raw" / "intents.csv"
 DEFAULT_AUDIO_DIR = _PROJECT_ROOT / "data" / "audio"
@@ -412,7 +412,7 @@ def main(argv: list[str] | None = None) -> int:
     report_coverage(clips)
     print(f"\nmanifest written: {manifest}")
     print(f"  {sum(1 for c in clips if c.source == 'tts')} to synthesise  "
-          f"(python scripts/make_tts_clips.py)")
+          f"(python scripts/audio/make_tts_clips.py)")
     print(f"  {sum(1 for c in clips if c.source == 'recorded')} to record  (below)")
     print_recording_sheet(clips)
     return 0

@@ -8,7 +8,7 @@ turn is done.
 
 One call per turn is the design constraint: it keeps the call line responsive
 and the cost predictable. Nothing here talks to the network directly, that is
-:mod:`hermes.llm`; nothing here acts on the decision, that is
+:mod:`hermes.infra.llm`; nothing here acts on the decision, that is
 :mod:`hermes.pipeline`.
 """
 
@@ -18,10 +18,10 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from hermes.exam_bot import MatchResult
-from hermes.faq_rag import Retrieved
-from hermes.frustration import FrustrationScore
-from hermes.intent_gate import IntentDecision
+from hermes.understand.exam_bot import MatchResult
+from hermes.understand.faq_rag import Retrieved
+from hermes.understand.frustration import FrustrationScore
+from hermes.understand.intent_gate import IntentDecision
 
 
 class Action(str, Enum):

@@ -1,10 +1,10 @@
 # The appointment book
 
-`src/hermes/agenda.py` is the only module that writes to the calendar. It holds
+`src/hermes/book/agenda.py` is the only module that writes to the calendar. It holds
 no LLM call and no network access: the model fills a JSON form, Python does the
 searching, holding and booking, and every rule is checked here.
 
-SQLite, three tables, built by `scripts/build_agenda.py`.
+SQLite, three tables, built by `scripts/agenda/build_agenda.py`.
 
 ## Schema
 
@@ -90,7 +90,7 @@ when the exam begins — and it is pinned by a test.
 
 ## Tests
 
-59 tests in `tests/test_agenda.py`, against a temporary database and catalogue
+59 tests in `tests/book/test_agenda.py`, against a temporary database and catalogue
 built per test, so nothing touches `data/`. The fixture lays out genuinely
 contiguous blocks, because an exam longer than one slot can only be placed if
 the slots actually abut — the first version of that fixture had gaps, and no

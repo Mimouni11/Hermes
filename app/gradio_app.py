@@ -34,20 +34,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import gradio as gr  # noqa: E402
 
-from hermes import (  # noqa: E402
-    audio_quality,
-    embeddings,
-    escalation,
-    exam_bot,
-    faq_rag,
-    intent_gate,
-    lexicon,
-    llm,
-    stt,
-    tts,
-)
+from hermes.listen import audio_quality, lexicon, stt  # noqa: E402
+from hermes.infra import embeddings, llm  # noqa: E402
+from hermes.guard import escalation  # noqa: E402
+from hermes.understand import exam_bot, faq_rag, intent_gate  # noqa: E402
+from hermes.speak import tts  # noqa: E402
 from hermes.config import get_settings  # noqa: E402
-from hermes.intent_gate import Action, Intent  # noqa: E402
+from hermes.understand.intent_gate import Action, Intent  # noqa: E402
 
 #: What the agent says when the intent is one the pipeline cannot serve yet.
 NOT_BUILT_YET = {
@@ -274,7 +267,7 @@ def route_and_reply(text: str, report: TurnReport) -> tuple[str, str, str]:
     try:
         decision = intent_gate.classify(text)
     except Exception as exc:  # noqa: BLE001 — translate, do not swallow
-        from hermes import vector_store
+        from hermes.infra import vector_store
 
         if not vector_store.ping(force=True):
             settings = get_settings()
@@ -626,7 +619,7 @@ def build_ui() -> gr.Blocks:
 
 def main() -> int:
     """Check what the bench needs, then launch it."""
-    from hermes import vector_store
+    from hermes.infra import vector_store
 
     settings = get_settings()
     print("hermes-voice bench")
@@ -639,7 +632,7 @@ def main() -> int:
     model = settings.paths.models / settings.intent_model_file
     if not model.exists():
         print("  ! no intent classifier — run: "
-              "uv run python scripts/train_intent_classifier.py")
+              "uv run python scripts/intent/train_intent_classifier.py")
 
     if tts.find_voice_file() is None:
         print(f"  ! no Piper voice in {settings.paths.models / 'piper'}")

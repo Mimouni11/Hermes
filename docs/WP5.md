@@ -122,7 +122,7 @@ whoever built the data.
 
 ## Decision 2 — the stub's features do not exist, and cannot yet
 
-`src/hermes/frustration.py` declares:
+`src/hermes/understand/frustration.py` declares:
 
 ```python
 class TurnFeatures:
@@ -161,7 +161,7 @@ and `logging_utils.py`, so **that name does not change.**
 
 `docs/README.md` and the plan both call WP5 an "MLP on sentence embeddings".
 WP3 ran exactly that comparison on the identical embeddings for the intent
-gate, and `scripts/train_intent_classifier.py` records the outcome in its own
+gate, and `scripts/intent/train_intent_classifier.py` records the outcome in its own
 docstring: the MLP had **the best raw accuracy and was still the wrong
 choice**, losing on macro F1 and on medical recall.
 
@@ -254,7 +254,7 @@ the module for WP6's use but is out of the feature vector.
 
 EmoWOZ (`hhu-dsml/emowoz`, **CC-BY-NC-4.0**, Feng et al. LREC 2022) was added
 as auxiliary English training data — user turns only, `dialogue_id` as group,
-~1600 rows sampled balanced by `scripts/build_emowoz.py`. The French test folds
+~1600 rows sampled balanced by `scripts/frustration/build_emowoz.py`. The French test folds
 were held byte-identical and EmoWOZ rows entered **training folds only**,
 enforced by an explicit loop rather than `cross_val_predict`, because a helper
 that splits one matrix cannot express "these rows train but never test".
@@ -370,11 +370,11 @@ places in the report** and no claim resting on a two-row difference. Grouped
 
 ## Plan of work
 
-1. `scripts/train_frustration.py` — embed the 180 French rows, run
+1. `scripts/frustration/train_frustration.py` — embed the 180 French rows, run
    `StratifiedGroupKFold`, compare logistic regression against the MLP, print
    the grouped and ungrouped numbers side by side, and the per-kind breakdown.
    Writes `models/frustration.joblib`.
-2. `src/hermes/frustration.py` — `load_dataset`, text-only `featurise`, cached
+2. `src/hermes/understand/frustration.py` — `load_dataset`, text-only `featurise`, cached
    `load_model`, `predict` returning `FrustrationScore`. Degrades to a neutral
    score when the weights are missing, as the stub's docstring promises.
 3. Calibrate `FRUSTRATION_SOFT_THRESHOLD` and `FRUSTRATION_HARD_THRESHOLD` on
@@ -409,13 +409,13 @@ anything consumes the score.
 ## Reproducing it
 
 ```powershell
-uv run python scripts/train_frustration.py     # models/frustration.pt
-uv run python scripts/eval_frustration.py      # reports/frustration_eval.md
-uv run python -m pytest tests/test_frustration.py -q
+uv run python scripts/frustration/train_frustration.py     # models/frustration.pt
+uv run python scripts/frustration/eval_frustration.py      # reports/frustration_eval.md
+uv run python -m pytest tests/understand/test_frustration.py -q
 ```
 
 The evaluation defaults to running the EmoWOZ arms, which needs
-`scripts/build_emowoz.py` first and takes ~20 minutes. `--no-emowoz
+`scripts/frustration/build_emowoz.py` first and takes ~20 minutes. `--no-emowoz
 --no-curve` gives the shipped numbers in a few minutes.
 
 ## Acceptance criteria

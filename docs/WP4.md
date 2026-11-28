@@ -473,7 +473,7 @@ missing.
 
 ## Step 5 — no-LLM calibration
 
-Run `uv run python scripts/calibrate_exam.py --floor 82 --margin 8` to
+Run `uv run python scripts/exams/calibrate_exam.py --floor 82 --margin 8` to
 reproduce the sweep. T1 runs once per distinct catalogue keyword for each
 exam, across all 173 exams. Each run removes the query's normalized and
 lexicon-repaired forms from every base before ranking. This also removes aliases
@@ -574,10 +574,10 @@ turn's one call. WP6 merges both into a single prompt and schema — recorded in
 
 ## Step 7 — matcher evaluation
 
-Run `uv run python scripts/eval_exam.py` from the project root, with
+Run `uv run python scripts/exams/eval_exam.py` from the project root, with
 `reports/stt_results.csv` and the generated lexicon available. **It calls no
 model**, and writes [exam_eval.md](../reports/exam_eval.md) plus a per-case
-CSV. The LLM is measured by `scripts/eval_exam_llm.py` into a separate report.
+CSV. The LLM is measured by `scripts/exams/eval_exam_llm.py` into a separate report.
 
 ### Why the two are separate runs
 
@@ -821,16 +821,16 @@ confusable list contains none of the five flagged exams.
 
 ## Plan of work
 
-1. ~~`scripts/build_exam_index.py` — gazetteer from `keywords_fr`, with the
+1. ~~`scripts/exams/build_exam_index.py` — gazetteer from `keywords_fr`, with the
    base/side/contrast decomposition from Decision 1.~~ **Done.** Builds
    `data/processed/exam_index.json` (136 KB) in under a second: 173 exams →
    132 bases, 768 deduplicated phrases, 64 confusable pairs, 5 escalate exams.
    The builder asserts every exam lands in exactly one base and that no base is
    phraseless, because a hole there would surface only as an unexplained miss
-   that threshold tuning would chase forever. `src/hermes/exam_bot.py` carries
+   that threshold tuning would chase forever. `src/hermes/understand/exam_bot.py` carries
    the normalisation primitives both the builder and the matcher need, plus the
    `ExamMatch` result type.
-2. ~~`src/hermes/exam_bot.py` — normalise, extract attributes, rank.~~
+2. ~~`src/hermes/understand/exam_bot.py` — normalise, extract attributes, rank.~~
    **Done.** `prepare()` runs `lexicon.repair()` then reads modality,
    laterality and contrast; `rank()` scores every candidate base and
    `resolve()` turns a base into one exam id or names the missing slot.

@@ -29,7 +29,7 @@ from statistics import mean, pstdev
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from hermes import frustration  # noqa: E402
+from hermes.understand import frustration  # noqa: E402
 
 #: Kinds reported as counts, never percentages. With 7 to 12 rows each, a
 #: percentage of eleven invites a confidence the data cannot support.
@@ -131,7 +131,7 @@ def baseline_report(rows: list[dict[str, str]], result: dict) -> None:
 # --------------------------------------------------------------------------
 
 def embed(texts: list[str]):
-    from hermes import embeddings
+    from hermes.infra import embeddings
 
     return embeddings.encode(texts)
 
@@ -145,7 +145,7 @@ def make_lr(seed: int):
 
 
 def make_mlp(seed: int):
-    from hermes.mlp import MLPConfig, TorchMLP
+    from hermes.understand.mlp import MLPConfig, TorchMLP
 
     return TorchMLP(MLPConfig(), seed=seed)
 
@@ -214,7 +214,7 @@ def out_of_fold(
             # it. Choosing once over the whole set and reusing it would leak
             # the test rows into a hyperparameter, which is the quiet version
             # of the mistake the grouped split exists to prevent.
-            from hermes.mlp import EPOCH_CANDIDATES, choose_epochs
+            from hermes.understand.mlp import EPOCH_CANDIDATES, choose_epochs
 
             chosen, curve = choose_epochs(
                 X_train, y_train,
@@ -235,7 +235,7 @@ def out_of_fold(
         if select_epochs is not None:
             from dataclasses import replace as replace_config
 
-            from hermes.mlp import TorchMLP
+            from hermes.understand.mlp import TorchMLP
 
             model = TorchMLP(
                 replace_config(select_epochs, epochs=chosen), seed=seed,
@@ -1187,7 +1187,7 @@ def main(argv: list[str] | None = None) -> int:
     # fixed, equalised update budget, which is what makes them comparable.
     picks: list = []
     if not args.no_select:
-        from hermes.mlp import EPOCH_CANDIDATES, MLPConfig
+        from hermes.understand.mlp import EPOCH_CANDIDATES, MLPConfig
 
         candidates = tuple(args.epoch_candidates or EPOCH_CANDIDATES)
         print(f"(ship) torch MLP, epochs chosen by inner grouped CV "

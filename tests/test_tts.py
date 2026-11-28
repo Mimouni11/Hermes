@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from hermes import tts
+from hermes.speak import tts
 from hermes.config import get_settings
 
 

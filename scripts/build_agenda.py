@@ -22,7 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from hermes import agenda  # noqa: E402
+from hermes.book import agenda  # noqa: E402
 
 # --------------------------------------------------------------------------
 # The centre

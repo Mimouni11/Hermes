@@ -24,7 +24,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from hermes import frustration  # noqa: E402
+from hermes.understand import frustration  # noqa: E402
 from hermes.config import get_settings  # noqa: E402
 
 
@@ -44,8 +44,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     import numpy as np
 
-    from hermes import embeddings
-    from hermes.mlp import EPOCH_CANDIDATES, MLPConfig, TorchMLP, choose_epochs
+    from hermes.infra import embeddings
+    from hermes.understand.mlp import EPOCH_CANDIDATES, MLPConfig, TorchMLP, choose_epochs
 
     args = parse_args(argv)
     settings = get_settings()

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from hermes import exam_bot
+from hermes.understand import exam_bot
 from scripts.build_exam_index import build, read_csv
 
 

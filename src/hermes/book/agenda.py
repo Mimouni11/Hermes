@@ -47,11 +47,13 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Iterator, Literal, Sequence
 
+from hermes.config import project_root
+
 # --------------------------------------------------------------------------
 # Paths and constants
 # --------------------------------------------------------------------------
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_PROJECT_ROOT = project_root()
 
 DEFAULT_DB_PATH = _PROJECT_ROOT / "data" / "processed" / "agenda.db"
 DEFAULT_EXAMS_CSV = _PROJECT_ROOT / "data" / "raw" / "exams.csv"

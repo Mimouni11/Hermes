@@ -37,7 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from hermes.config import get_settings  # noqa: E402
 
-#: The safety vocabulary. Mirrors hermes.stt.SAFETY_VOCABULARY.
+#: The safety vocabulary. Mirrors hermes.listen.stt.SAFETY_VOCABULARY.
 SAFETY_TERMS: list[str] = [
     "broches",
     "prothèse",
@@ -154,7 +154,8 @@ def whisper_variants(terms: list[str], sentences: int) -> dict[str, set[str]]:
     The only step here that is evidence rather than conjecture: these are the
     words this model produces for these terms on this machine.
     """
-    from hermes import stt, tts
+    from hermes.listen import stt
+    from hermes.speak import tts
 
     found: dict[str, set[str]] = {term: set() for term in terms}
     engine = stt.load_model()

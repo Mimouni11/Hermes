@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from hermes import frustration
+from hermes.understand import frustration
 from hermes.config import get_settings
 
 

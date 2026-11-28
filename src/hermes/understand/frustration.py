@@ -386,7 +386,7 @@ def load_model(path: Path | None = None, reload: bool = False):
         return None
 
     try:
-        from hermes.mlp import TorchMLP
+        from hermes.understand.mlp import TorchMLP
 
         model, meta = TorchMLP.load(source, width=settings.embedding_dim)
     except Exception as exc:  # noqa: BLE001 — a bad artefact must not kill a call
@@ -444,7 +444,7 @@ def detect(text: str, lang: str = "fr") -> FrustrationScore:
         )
 
     try:
-        from hermes import embeddings
+        from hermes.infra import embeddings
 
         vector = embeddings.encode_one(text).reshape(1, -1)
         probability = float(model.predict_proba(vector)[0, 1])

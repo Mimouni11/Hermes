@@ -10,7 +10,7 @@ What the index holds, and why it is shaped this way:
 slots. Measured: 173 exams collapse to 132 bases — 91 single exams, 39
 droite/gauche pairs, 2 ±injection pairs. Those 39 pairs cannot be separated by
 any string metric and should not be, because the caller did not say which side;
-see the module docstring of `hermes.exam_bot`.
+see the module docstring of `hermes.understand.exam_bot`.
 
 **Phrases from `keywords_fr`, not `name_fr`.** The colloquial form outnumbers
 the formal one for every modality that has both: `echo` appears on 194 strings
@@ -41,7 +41,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from hermes.config import get_settings  # noqa: E402
-from hermes.exam_bot import (  # noqa: E402
+from hermes.understand.exam_bot import (  # noqa: E402
     base_key,
     base_phrase,
     match_phrase,

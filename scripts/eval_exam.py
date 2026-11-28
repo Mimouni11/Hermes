@@ -32,9 +32,9 @@ import jiwer
 
 from build_exam_index import build, read_csv
 from calibrate_exam import hold_out, survives_holdout
-from hermes import exam_bot
+from hermes.understand import exam_bot
 from hermes.config import get_settings, set_settings
-from hermes.stt import normalise_for_wer
+from hermes.listen.stt import normalise_for_wer
 
 
 @dataclass(frozen=True)

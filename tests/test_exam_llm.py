@@ -5,7 +5,9 @@ from dataclasses import replace
 
 import pytest
 
-from hermes import config, exam_bot, llm
+from hermes import config
+from hermes.understand import exam_bot
+from hermes.infra import llm
 
 
 @pytest.fixture

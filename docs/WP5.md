@@ -122,7 +122,7 @@ whoever built the data.
 
 ## Decision 2 — the stub's features do not exist, and cannot yet
 
-`src/hermes/frustration.py` declares:
+`src/hermes/understand/frustration.py` declares:
 
 ```python
 class TurnFeatures:
@@ -374,7 +374,7 @@ places in the report** and no claim resting on a two-row difference. Grouped
    `StratifiedGroupKFold`, compare logistic regression against the MLP, print
    the grouped and ungrouped numbers side by side, and the per-kind breakdown.
    Writes `models/frustration.joblib`.
-2. `src/hermes/frustration.py` — `load_dataset`, text-only `featurise`, cached
+2. `src/hermes/understand/frustration.py` — `load_dataset`, text-only `featurise`, cached
    `load_model`, `predict` returning `FrustrationScore`. Degrades to a neutral
    score when the weights are missing, as the stub's docstring promises.
 3. Calibrate `FRUSTRATION_SOFT_THRESHOLD` and `FRUSTRATION_HARD_THRESHOLD` on

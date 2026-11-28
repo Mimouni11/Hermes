@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from hermes import escalation
+from hermes.guard import escalation
 
 
 # --------------------------------------------------------------------------

@@ -157,7 +157,7 @@ def neighbours_for(
     lang: str | None = None,
 ) -> list[Neighbour]:
     """Return the nearest labelled examples, best first."""
-    from hermes import embeddings, vector_store
+    from hermes.infra import embeddings, vector_store
 
     settings = get_settings()
     hits = vector_store.search(
@@ -293,7 +293,7 @@ def _policy_answer(text: str) -> str | None:
     clear winner rather than one of several near-equal matches. A borderline
     retrieval hands over instead.
     """
-    from hermes import faq_rag
+    from hermes.understand import faq_rag
 
     settings = get_settings()
     hits = faq_rag.search(text, k=2)
@@ -314,7 +314,7 @@ def _policy_answer(text: str) -> str | None:
 
 def predict_probabilities(text: str) -> dict[Intent, float]:
     """Return the classifier's probability for every intent."""
-    from hermes import embeddings
+    from hermes.infra import embeddings
 
     bundle = load_classifier()
     model = bundle["model"]
@@ -403,7 +403,7 @@ def classify(
     # 2. The deterministic medical rules, before any routing. Tier B only:
     # these are the questions whose answer depends on the caller's own body,
     # device or history, and nothing may override them.
-    from hermes import escalation
+    from hermes.guard import escalation
 
     rule = escalation.medical_rule_hit(stripped)
     if rule:

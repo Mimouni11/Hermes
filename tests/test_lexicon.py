@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from hermes import lexicon
+from hermes.listen import lexicon
 from hermes.config import get_settings
 
 

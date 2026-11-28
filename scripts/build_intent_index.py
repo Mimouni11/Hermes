@@ -28,7 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from hermes import embeddings, vector_store  # noqa: E402
+from hermes.infra import embeddings, vector_store  # noqa: E402
 from hermes.config import get_settings  # noqa: E402
 
 #: Payload fields copied from the CSV onto every point.

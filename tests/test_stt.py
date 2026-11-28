@@ -12,9 +12,9 @@ from pathlib import Path
 
 import pytest
 
-from hermes import stt
+from hermes.listen import stt
 from hermes.config import get_settings
-from hermes.stt import Segment, Transcript
+from hermes.listen.stt import Segment, Transcript
 
 pytestmark: list = []
 

@@ -16,14 +16,14 @@ from pathlib import Path
 
 import pytest
 
-from hermes import faq_rag
+from hermes.understand import faq_rag
 from hermes.config import get_settings
-from hermes.faq_rag import FaqEntry, Retrieved
+from hermes.understand.faq_rag import FaqEntry, Retrieved
 
 
 def _needs_index() -> None:
     """Skip unless Qdrant is up and the FAQ collection is populated."""
-    from hermes import vector_store
+    from hermes.infra import vector_store
 
     settings = get_settings()
     if not vector_store.ping():

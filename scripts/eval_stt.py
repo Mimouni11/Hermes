@@ -1,7 +1,7 @@
 """Evaluate the speech-to-text front end over the whole test audio set.
 
 Runs each Whisper model size over every clip in `data/audio/manifest.csv`, twice
-— once on the audio as it is, once after :func:`hermes.audio_quality.normalize`
+— once on the audio as it is, once after :func:`hermes.listen.audio_quality.normalize`
 — and writes one row per clip x model x audio variant to
 `reports/stt_results.csv`, then prints the summary.
 
@@ -35,9 +35,9 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from hermes import audio_quality  # noqa: E402
+from hermes.listen import audio_quality  # noqa: E402
 from hermes.config import get_settings  # noqa: E402
-from hermes.stt import STT, normalise_for_wer  # noqa: E402
+from hermes.listen.stt import STT, normalise_for_wer  # noqa: E402
 
 DEFAULT_MODELS = ["small", "base"]
 DEFAULT_VARIANTS = ["raw", "normalized"]

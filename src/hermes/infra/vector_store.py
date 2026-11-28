@@ -286,7 +286,7 @@ def search_text(
     where: dict[str, Any] | None = None,
 ) -> list[Hit]:
     """Embed a sentence and search in one call."""
-    from hermes.embeddings import encode_one
+    from hermes.infra.embeddings import encode_one
 
     return search(name, encode_one(text), limit=limit, where=where)
 

@@ -33,7 +33,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from hermes import lexicon  # noqa: E402
+from hermes.listen import lexicon  # noqa: E402
 from hermes.config import get_settings  # noqa: E402
 
 RESULT_COLUMNS = [

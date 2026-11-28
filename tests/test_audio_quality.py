@@ -15,7 +15,8 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from hermes import audio_quality, config
+from hermes.listen import audio_quality
+from hermes import config
 from hermes.config import get_settings
 
 SR = 16_000

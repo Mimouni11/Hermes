@@ -10,7 +10,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from build_exam_index import build, read_csv
-from hermes import exam_bot
+from hermes.understand import exam_bot
 from hermes.config import get_settings, set_settings
 
 

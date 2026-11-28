@@ -827,10 +827,10 @@ confusable list contains none of the five flagged exams.
    132 bases, 768 deduplicated phrases, 64 confusable pairs, 5 escalate exams.
    The builder asserts every exam lands in exactly one base and that no base is
    phraseless, because a hole there would surface only as an unexplained miss
-   that threshold tuning would chase forever. `src/hermes/exam_bot.py` carries
+   that threshold tuning would chase forever. `src/hermes/understand/exam_bot.py` carries
    the normalisation primitives both the builder and the matcher need, plus the
    `ExamMatch` result type.
-2. ~~`src/hermes/exam_bot.py` — normalise, extract attributes, rank.~~
+2. ~~`src/hermes/understand/exam_bot.py` — normalise, extract attributes, rank.~~
    **Done.** `prepare()` runs `lexicon.repair()` then reads modality,
    laterality and contrast; `rank()` scores every candidate base and
    `resolve()` turns a base into one exam id or names the missing slot.

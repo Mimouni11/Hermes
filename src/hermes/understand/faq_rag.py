@@ -116,7 +116,7 @@ def search(
     queries were otherwise matching Darija variants, and filtering lifted
     top-3 from 64.5% to 67.7%.
     """
-    from hermes import embeddings, vector_store
+    from hermes.infra import embeddings, vector_store
 
     settings = get_settings()
     wanted = k or settings.faq_top_k
@@ -297,7 +297,7 @@ def spoken_answer(
     Returns ``(text, source)``; source is "llm", "cache", "timeout",
     "error:…" or "no_match".
     """
-    from hermes import llm
+    from hermes.infra import llm
 
     hit = best_match(question, lang=lang)
     if hit is None:

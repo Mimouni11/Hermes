@@ -116,7 +116,7 @@ The agent answers questions about exams, preparation, opening hours, pricing and
 appointments. It never triages, never interprets results, never gives medical
 advice. Any utterance that looks like a medical emergency reads the fixed
 emergency script and transfers immediately, whatever else was happening in the
-dialogue. These checks live in `src/hermes/escalation.py` and run *after* the LLM
+dialogue. These checks live in `src/hermes/guard/escalation.py` and run *after* the LLM
 call so the model cannot talk its way past them.
 
 ## Rule 3 — no personal data on disk
@@ -136,7 +136,7 @@ caller data into a prompt, a test fixture, a notebook or a commit.
 - One LLM call per turn. The budget is in `src/hermes/agent.py`; keep it there.
 - All configuration, paths and thresholds come from `src/hermes/config.py`.
   No `os.getenv` and no hand-built paths anywhere else.
-- `src/hermes/llm.py` is the only module that touches a model provider.
+- `src/hermes/infra/llm.py` is the only module that touches a model provider.
 - Type hints on every signature. `from __future__ import annotations` at the top.
 - New dependencies go in both `requirements.txt` and `pyproject.toml`, and must
   be free.

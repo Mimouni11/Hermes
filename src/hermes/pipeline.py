@@ -2,18 +2,18 @@
 
 The order is fixed, and each stage can short-circuit the ones after it:
 
-1. :mod:`hermes.audio_quality`  too noisy? ask the caller to repeat, stop here
-2. :mod:`hermes.stt`            transcribe
-3. :mod:`hermes.escalation`     emergency words? read the script, transfer, stop
-4. :mod:`hermes.intent_gate`    route, or refuse as out of scope
-5. :mod:`hermes.faq_rag` / :mod:`hermes.exam_bot`  gather grounding for the intent
-6. :mod:`hermes.frustration`    score the caller's patience — recorded only,
+1. :mod:`hermes.listen.audio_quality`  too noisy? ask the caller to repeat, stop here
+2. :mod:`hermes.listen.stt`            transcribe
+3. :mod:`hermes.guard.escalation`     emergency words? read the script, transfer, stop
+4. :mod:`hermes.understand.intent_gate`    route, or refuse as out of scope
+5. :mod:`hermes.understand.faq_rag` / :mod:`hermes.understand.exam_bot`  gather grounding for the intent
+6. :mod:`hermes.understand.frustration`    score the caller's patience — recorded only,
    never acted on here; WP6's orchestrator owns what a level means
 7. :mod:`hermes.agent`          one LLM call, JSON decision
-8. :mod:`hermes.escalation`     re-check the rules against the decision
-9. :mod:`hermes.agenda`         carry out a booking, reschedule or cancellation
-10. :mod:`hermes.tts`           speak the reply
-11. :mod:`hermes.logging_utils` log the turn, anonymised
+8. :mod:`hermes.guard.escalation`     re-check the rules against the decision
+9. :mod:`hermes.book.agenda`         carry out a booking, reschedule or cancellation
+10. :mod:`hermes.speak.tts`           speak the reply
+11. :mod:`hermes.infra.logging_utils` log the turn, anonymised
 
 :func:`run_turn` is what the Gradio demo and the tests call; :func:`run_call`
 loops it over several clips for the end-to-end evaluation.
@@ -26,12 +26,12 @@ from pathlib import Path
 from typing import Any
 
 from hermes.agent import AgentDecision, DialogueState
-from hermes.audio_quality import AudioReport
-from hermes.escalation import Escalation
-from hermes.frustration import FrustrationScore
-from hermes.intent_gate import IntentDecision
-from hermes.stt import Transcript
-from hermes.tts import Speech
+from hermes.listen.audio_quality import AudioReport
+from hermes.guard.escalation import Escalation
+from hermes.understand.frustration import FrustrationScore
+from hermes.understand.intent_gate import IntentDecision
+from hermes.listen.stt import Transcript
+from hermes.speak.tts import Speech
 
 
 @dataclass
@@ -66,7 +66,7 @@ def score_frustration(text: str, lang: str = "fr") -> FrustrationScore:
     Kept deliberately thin so that when `run_turn` is implemented it has one
     call to make and no policy to re-derive.
     """
-    from hermes import frustration
+    from hermes.understand import frustration
 
     return frustration.detect(text, lang=lang)
 

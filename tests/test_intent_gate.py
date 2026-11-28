@@ -15,14 +15,14 @@ from __future__ import annotations
 
 import pytest
 
-from hermes import intent_gate
+from hermes.understand import intent_gate
 from hermes.config import get_settings
-from hermes.intent_gate import Action, Intent, Neighbour
+from hermes.understand.intent_gate import Action, Intent, Neighbour
 
 
 def _needs_index() -> None:
     """Skip unless Qdrant is up, populated, and the classifier is trained."""
-    from hermes import vector_store
+    from hermes.infra import vector_store
 
     settings = get_settings()
     if not vector_store.ping():
@@ -290,7 +290,7 @@ def test_the_threshold_can_be_overridden_per_call() -> None:
 
 def test_every_action_has_something_to_say() -> None:
     """Except routing, where the branch that owns the intent replies."""
-    from hermes.intent_gate import IntentDecision
+    from hermes.understand.intent_gate import IntentDecision
 
     def decision(action: Action, intent: Intent) -> IntentDecision:
         return IntentDecision(

@@ -1,6 +1,6 @@
 # The appointment book
 
-`src/hermes/agenda.py` is the only module that writes to the calendar. It holds
+`src/hermes/book/agenda.py` is the only module that writes to the calendar. It holds
 no LLM call and no network access: the model fills a JSON form, Python does the
 searching, holding and booking, and every rule is checked here.
 

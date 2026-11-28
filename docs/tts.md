@@ -1,6 +1,6 @@
 # The agent's voice
 
-`src/hermes/tts.py` turns a reply into speech. Piper by default — local,
+`src/hermes/speak/tts.py` turns a reply into speech. Piper by default — local,
 offline, no per-call cost — with gTTS behind it as a fallback and as the
 comparison point the report needs.
 

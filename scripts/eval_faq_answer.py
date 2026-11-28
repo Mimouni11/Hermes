@@ -35,7 +35,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from hermes import faq_rag, llm  # noqa: E402
+from hermes.understand import faq_rag  # noqa: E402
+from hermes.infra import llm  # noqa: E402
 from hermes.config import get_settings  # noqa: E402
 
 RESULT_COLUMNS = [

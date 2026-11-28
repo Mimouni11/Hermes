@@ -354,7 +354,7 @@ class STT:
     ) -> tuple[np.ndarray, float]:
         """Return the audio as float32 at 16 kHz, plus its duration."""
         if isinstance(audio, (str, Path)):
-            from hermes.audio_quality import load_audio
+            from hermes.listen.audio_quality import load_audio
 
             samples, rate = load_audio(audio, TARGET_SR)
             return samples, samples.size / rate

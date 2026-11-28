@@ -36,9 +36,10 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from hermes import embeddings, intent_gate, vector_store  # noqa: E402
+from hermes.infra import embeddings, vector_store  # noqa: E402
+from hermes.understand import intent_gate  # noqa: E402
 from hermes.config import get_settings  # noqa: E402
-from hermes.intent_gate import Action, Intent, Neighbour, score_intents  # noqa: E402
+from hermes.understand.intent_gate import Action, Intent, Neighbour, score_intents  # noqa: E402
 
 #: An out-of-scope caller is handled correctly if the agent hands over, asks
 #: again, asks which of two things they meant, or declines. It fails only when

@@ -20,8 +20,8 @@ from enum import Enum
 from typing import Any
 
 from hermes.agent import AgentDecision, DialogueState
-from hermes.frustration import FrustrationScore
-from hermes.intent_gate import IntentDecision
+from hermes.understand.frustration import FrustrationScore
+from hermes.understand.intent_gate import IntentDecision
 
 
 class Reason(str, Enum):

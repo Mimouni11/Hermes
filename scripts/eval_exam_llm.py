@@ -41,7 +41,8 @@ from tempfile import TemporaryDirectory
 from build_exam_index import build, read_csv
 from calibrate_exam import hold_out
 from eval_exam import Sample, replay_rules, samples
-from hermes import exam_bot, llm
+from hermes.understand import exam_bot
+from hermes.infra import llm
 from hermes.config import get_settings, set_settings
 
 #: Seconds between calls in the quality run. The burst that produced 254

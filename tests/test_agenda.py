@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from hermes import agenda
+from hermes.book import agenda
 
 # --------------------------------------------------------------------------
 # Fixture data

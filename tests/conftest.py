@@ -90,7 +90,7 @@ def noisy_wav(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def fake_llm(monkeypatch: pytest.MonkeyPatch) -> Iterator[Any]:
-    """Replace :mod:`hermes.llm` with a scripted responder, no network."""
+    """Replace :mod:`hermes.infra.llm` with a scripted responder, no network."""
     ...
 
 

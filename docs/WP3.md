@@ -290,10 +290,10 @@ Not a demo page — a bench for seeing every stage work.
 
 | Path | State |
 |---|---|
-| `src/hermes/embeddings.py` | new — load the model once, encode, cache |
-| `src/hermes/vector_store.py` | new — Qdrant client, collections, upsert, search |
-| `src/hermes/intent_gate.py` | stub → implement |
-| `src/hermes/faq_rag.py` | stub → implement |
+| `src/hermes/infra/embeddings.py` | new — load the model once, encode, cache |
+| `src/hermes/infra/vector_store.py` | new — Qdrant client, collections, upsert, search |
+| `src/hermes/understand/intent_gate.py` | stub → implement |
+| `src/hermes/understand/faq_rag.py` | stub → implement |
 | `scripts/build_intent_centroids.py` | stub → repurpose as the intent indexer |
 | `scripts/build_faq_index.py` | stub → implement as the FAQ indexer |
 | `scripts/calibrate_intent.py` | new — τ and the margin, like `calibrate_gate.py` |

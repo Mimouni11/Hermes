@@ -34,7 +34,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from hermes import embeddings  # noqa: E402
+from hermes.infra import embeddings  # noqa: E402
 from hermes.config import get_settings  # noqa: E402
 
 #: The label whose recall matters more than the average.

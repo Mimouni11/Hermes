@@ -575,7 +575,7 @@ def prepare(text: str, repair: bool = True) -> Prepared:
     flags: tuple[str, ...] = ()
 
     if repair and repaired.strip():
-        from hermes import lexicon
+        from hermes.listen import lexicon
 
         result = lexicon.repair(repaired)
         repaired = result.repaired
@@ -867,7 +867,7 @@ EXAM_SELECTION_SYSTEM = (
 def _llm_choice(
     state: Prepared, offered: dict[str, str], trace: list[str],
 ) -> str | None:
-    from hermes import llm
+    from hermes.infra import llm
 
     settings = get_settings()
     utterance = unicodedata.normalize("NFC", state.repaired).lower()
